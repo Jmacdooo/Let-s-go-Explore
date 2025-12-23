@@ -214,6 +214,7 @@ function centerCameraOn(wx, wy){
   camera.y = clamp(wy - window.innerHeight/2, 0, WORLD_H - window.innerHeight);
 }
 
+
 // ---------- Assets (optional) ----------
 const ASSET_BASE = "assets/dog/";
 
@@ -222,9 +223,21 @@ function loadImage(key, src){
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = ()=>{ images[key]=img; resolve(true); };
-    img.onerror = ()=>{ resolve(false); }; // no crash: fallback drawing
+    img.onerror = ()=>{ resolve(false); }; // fallback if missing
     img.src = src;
   });
+}
+
+// Load what you actually have. (happy reuses idle)
+(async function loadAssets(){
+  await loadImage("dog_idle", ASSET_BASE + "dog_idle.png");
+  await loadImage("dog_walk", ASSET_BASE + "dog_walk.png");
+  await loadImage("dog_eat",  ASSET_BASE + "dog_eat.png");
+
+  // If you don't have dog_happy.png, reuse idle
+  images["dog_happy"] = images["dog_idle"] || null;
+})();
+
 }
 
 /*
