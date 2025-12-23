@@ -482,10 +482,13 @@ const SPR = {
 // Try loading images (optional). If missing, we just draw fallback.
 (async function loadAssets(){
   // Dog sprites (optional)
-  await loadImage("dog_idle",  ASSET_BASE+"dog_idle.png");
-  await loadImage("dog_walk",  ASSET_BASE+"dog_walk.png");
-  await loadImage("dog_happy", ASSET_BASE+"dog_happy.png");
-  await loadImage("dog_eat",   ASSET_BASE+"dog_eat.png");
+await loadImage("dog_idle",  ASSET_BASE+"dog_idle.png");
+await loadImage("dog_walk",  ASSET_BASE+"dog_walk.png");
+await loadImage("dog_eat",   ASSET_BASE+"dog_eat.png");
+
+// Use idle image for happy (since you don't have dog_happy.png)
+images["dog_happy"] = images["dog_idle"];
+
 
   // Optional park/landmark images if you want later (not required)
   // Example filenames (you can add them when ready):
