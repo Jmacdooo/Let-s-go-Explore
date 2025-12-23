@@ -167,31 +167,16 @@
 
 <script>
 // =========================================================
-// FIXED VERSION
-// ✅ Maps/landmarks now visible (ground draws to SCREEN, not world)
-// ✅ PATH_Y auto-fits screen height so signs are always in view
-// ✅ Uses your real repo files in /assets (no dog_walk.png 404)
-// Files used: assets/dog_idle.png, assets/dog_eat.png, assets/dog_paw.png, assets/dog_sleep.png
+// FINAL VERSION (BIGGER DOG + ANIMATED STEPS + TAIL WAG)
+// Uses your existing repo files (no paw-only walk):
+//   assets/dog_idle.png
+//   assets/dog_eat.png
+//   assets/dog_sleep.png
 // =========================================================
 
-// Canvas setup
+// Canvas
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
-
-function resize(){
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  ctx.setTransform(1,0,0,1,0,0);
-
-  // Keep the path visible on any screen size
-  PATH_Y = Math.round(window.innerHeight * 0.62);
-  dog.y = PATH_Y + 60;
-  parks.forEach(p => p.y = PATH_Y);
-  animals.forEach((a,i)=>{
-    a.y = parks[i].y + 60;
-  });
-}
-window.addEventListener("resize", resize);
 
 // Helpers
 const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
@@ -200,8 +185,6 @@ const dist  = (x1,y1,x2,y2)=>Math.hypot(x1-x2, y1-y2);
 // World
 const WORLD_W = 5200;
 const WORLD_H = 1400;
-
-// PATH_Y is dynamic so your landmarks never disappear
 let PATH_Y = Math.round(window.innerHeight * 0.62);
 
 // Camera
@@ -211,10 +194,9 @@ function centerCameraOn(wx, wy){
   camera.y = clamp(wy - window.innerHeight/2, 0, WORLD_H - window.innerHeight);
 }
 
-// Assets (MATCH YOUR REPO FILES)
+// Assets (stable)
 const ASSET_BASE = "assets/";
 const images = {};
-
 function loadImage(key, src){
   return new Promise((resolve)=>{
     const img = new Image();
@@ -223,32 +205,28 @@ function loadImage(key, src){
     img.src = src;
   });
 }
-
 (async function loadAssets(){
-  await loadImage("dog_idle",  ASSET_BASE + "dog_idle.png");
-  await loadImage("dog_walk",  ASSET_BASE + "dog_paw.png");    // walk uses paw image
+  await loadImage("dog",       ASSET_BASE + "dog_idle.png");
   await loadImage("dog_eat",   ASSET_BASE + "dog_eat.png");
   await loadImage("dog_sleep", ASSET_BASE + "dog_sleep.png");
-  images["dog_happy"] = images["dog_idle"] || null;           // happy reuses idle for now
 })();
 
-// Parks (y gets set to PATH_Y)
+// Parks
 const parks = [
-  { id:"yosemite", name:"Yosemite", subtitle:"Half Dome", emoji:"⛰️", x: 320,  y: PATH_Y, animal:{ name:"Black Bear", emoji:"🐻", message:"A bear sniffs the air… your dog stays calm. Good pup!" } },
-  { id:"grandcanyon", name:"Grand Canyon", subtitle:"South Rim View", emoji:"🧡", x: 820,  y: PATH_Y, animal:{ name:"Condor", emoji:"🦅", message:"A condor glides overhead. Your dog looks up like: wow!" } },
-  { id:"zion", name:"Zion", subtitle:"Angels Landing", emoji:"🪨", x: 1320, y: PATH_Y, animal:{ name:"Bighorn Sheep", emoji:"🐏", message:"A bighorn sheep poses for a photo. Your dog wags politely." } },
-  { id:"arches", name:"Arches", subtitle:"Delicate Arch", emoji:"🌅", x: 1820, y: PATH_Y, animal:{ name:"Desert Fox", emoji:"🦊", message:"A fox darts by! Your dog freezes… then smiles." } },
+  { id:"yosemite", name:"Yosemite", subtitle:"Half Dome", emoji:"⛰️", x: 320,  y: PATH_Y,  animal:{ name:"Black Bear", emoji:"🐻", message:"A bear sniffs the air… your dog stays calm. Good pup!" } },
+  { id:"grandcanyon", name:"Grand Canyon", subtitle:"South Rim View", emoji:"🧡", x: 820,  y: PATH_Y,  animal:{ name:"Condor", emoji:"🦅", message:"A condor glides overhead. Your dog looks up like: wow!" } },
+  { id:"zion", name:"Zion", subtitle:"Angels Landing", emoji:"🪨", x: 1320, y: PATH_Y,  animal:{ name:"Bighorn Sheep", emoji:"🐏", message:"A bighorn sheep poses for a photo. Your dog wags politely." } },
+  { id:"arches", name:"Arches", subtitle:"Delicate Arch", emoji:"🌅", x: 1820, y: PATH_Y,  animal:{ name:"Desert Fox", emoji:"🦊", message:"A fox darts by! Your dog freezes… then smiles." } },
   { id:"yellowstone", name:"Yellowstone", subtitle:"Old Faithful", emoji:"💦", x: 2320, y: PATH_Y, animal:{ name:"Bison", emoji:"🦬", message:"A bison is nearby. Your dog keeps a respectful distance. Smart!" } },
-  { id:"tetons", name:"Grand Teton", subtitle:"Teton Range", emoji:"🏔️", x: 2820, y: PATH_Y, animal:{ name:"Moose", emoji:"🫎", message:"A moose munches leaves. Your dog is amazed (and quiet)." } },
+  { id:"tetons", name:"Grand Teton", subtitle:"Teton Range", emoji:"🏔️", x: 2820, y: PATH_Y,  animal:{ name:"Moose", emoji:"🫎", message:"A moose munches leaves. Your dog is amazed (and quiet)." } },
   { id:"glacier", name:"Glacier", subtitle:"Going-to-the-Sun Road", emoji:"❄️", x: 3320, y: PATH_Y, animal:{ name:"Mountain Goat", emoji:"🐐", message:"A mountain goat climbs like a superhero." } },
   { id:"rockymtn", name:"Rocky Mountain", subtitle:"Trail Ridge Road", emoji:"🌲", x: 3820, y: PATH_Y, animal:{ name:"Elk", emoji:"🦌", message:"An elk bugles! Your dog tilts head: ‘What was THAT?’" } },
   { id:"acadia", name:"Acadia", subtitle:"Cadillac Mountain", emoji:"🌊", x: 4320, y: PATH_Y, animal:{ name:"Harbor Seal", emoji:"🦭", message:"A seal pops up and splashes. Your dog is delighted." } },
   { id:"everglades", name:"Everglades", subtitle:"Alligator Alley", emoji:"🐊", x: 4820, y: PATH_Y, animal:{ name:"Alligator", emoji:"🐊", message:"You spot an alligator (from far away!). Your dog stays safe." } },
 ];
-
 const discovered = new Set();
 
-// Animals (linked to parks)
+// Animals
 const animals = parks.map(p=>({
   id: "animal_"+p.id,
   x: p.x + 120,
@@ -262,21 +240,31 @@ const animals = parks.map(p=>({
 const dog = {
   x: 240,
   y: PATH_Y + 60,
-  w: 84,
-  h: 64,
   speed: 3.4,
   dir: 1,
   state: "idle",
   timer: 0,
-  animTime: 0
+  animTime: 0,
+  scale: 0.95 // 👈 bigger dog (try 1.05 if you want even bigger)
 };
 
-// Now that dog/parks/animals exist, do first resize
+// Resize
+function resize(){
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  PATH_Y = Math.round(window.innerHeight * 0.62);
+  dog.y = PATH_Y + 60;
+  for(const p of parks) p.y = PATH_Y;
+  for(let i=0;i<animals.length;i++){
+    animals[i].y = parks[i].y + 60;
+  }
+}
+window.addEventListener("resize", resize);
 resize();
 
 // UI controls
 let moveLeft=false, moveRight=false;
-
 const leftBtn = document.getElementById("leftBtn");
 const rightBtn = document.getElementById("rightBtn");
 const stopBtn = document.getElementById("stopBtn");
@@ -418,7 +406,7 @@ function travelTo(park){
   dog.state = "travel";
   moveLeft = moveRight = false;
 
-  dog.x = clamp(park.x - 110, 0, WORLD_W - dog.w);
+  dog.x = clamp(park.x - 110, 0, WORLD_W - 200);
   dog.y = park.y + 60;
   dog.dir = 1;
 
@@ -430,7 +418,7 @@ function travelTo(park){
 function checkDiscovery(){
   for(const p of parks){
     if(discovered.has(p.id)) continue;
-    const d = dist(dog.x + dog.w/2, dog.y + dog.h/2, p.x, p.y + 60);
+    const d = dist(dog.x + 60, dog.y + 60, p.x, p.y + 60);
     if(d < 95){
       discovered.add(p.id);
       renderHUD();
@@ -445,7 +433,7 @@ function checkDiscovery(){
 function update(){
   if(moveLeft)  dog.x -= dog.speed;
   if(moveRight) dog.x += dog.speed;
-  dog.x = clamp(dog.x, 0, WORLD_W - dog.w);
+  dog.x = clamp(dog.x, 0, WORLD_W - 200);
 
   if(dog.timer > 0) dog.timer--;
   if(dog.timer === 0 && !moveLeft && !moveRight){
@@ -453,7 +441,7 @@ function update(){
   }
 
   dog.animTime += 1;
-  centerCameraOn(dog.x + dog.w/2, dog.y + dog.h/2);
+  centerCameraOn(dog.x + 60, dog.y + 60);
   checkDiscovery();
 
   if(toastT > 0){
@@ -465,11 +453,9 @@ function update(){
 
 // Drawing
 function drawBackground(){
-  // sky fills whole screen
   ctx.fillStyle = "#bde0fe";
   ctx.fillRect(0,0,window.innerWidth, window.innerHeight);
 
-  // soft clouds/parallax
   ctx.fillStyle = "rgba(0,0,0,0.06)";
   for(let i=0;i<14;i++){
     const x = (i*420 - (camera.x*0.35)%420);
@@ -478,8 +464,7 @@ function drawBackground(){
     ctx.fill();
   }
 
-  // ground + path draw to SCREEN (not world) so it always shows
-  const groundY = (PATH_Y + 60) - camera.y; // slightly below signs
+  const groundY = (PATH_Y + 60) - camera.y;
   ctx.fillStyle = "#8ecae6";
   ctx.fillRect(0, groundY, window.innerWidth, 500);
 
@@ -492,11 +477,9 @@ function drawLandmarks(){
     const sx = p.x - camera.x;
     const sy = p.y - camera.y;
 
-    // post
     ctx.fillStyle = discovered.has(p.id) ? "rgba(0,0,0,0.75)" : "rgba(0,0,0,0.35)";
     ctx.fillRect(sx - 10, sy + 25, 20, 90);
 
-    // sign
     ctx.fillStyle = "rgba(255,255,255,0.92)";
     ctx.fillRect(sx - 110, sy - 20, 220, 48);
 
@@ -530,39 +513,57 @@ function drawAnimals(){
   }
 }
 
-// Sprite keys
-const SPR = { keys: { idle:"dog_idle", walk:"dog_walk", happy:"dog_happy", eat:"dog_eat", sleep:"dog_sleep" } };
-
+// ✅ Bigger dog + animated steps + tail wag (no squish)
 function drawDog(){
+  let img = images["dog"];
+  if(dog.state === "eat") img = images["dog_eat"] || img;
+  if(dog.state === "sleep") img = images["dog_sleep"] || img;
+  if(!img) return;
+
   const sx = dog.x - camera.x;
   const sy = dog.y - camera.y;
 
-  const key = SPR.keys[dog.state] || SPR.keys.idle;
-  const img = images[key] || null;
+  // Preserve aspect ratio always
+  const drawW = img.width * dog.scale;
+  const drawH = img.height * dog.scale;
 
-  if(img){
-    const drawW = 160, drawH = 140;
-    ctx.save();
-    if(dog.dir === -1){
-      ctx.translate(sx + drawW, sy);
-      ctx.scale(-1, 1);
-      ctx.drawImage(img, 0, 0, drawW, drawH);
-    } else {
-      ctx.drawImage(img, sx, sy, drawW, drawH);
-    }
-    ctx.restore();
-    return;
+  // Step animation (walk)
+  let stepY = 0, stepX = 0, tilt = 0;
+  if(dog.state === "walk"){
+    stepY = Math.sin(dog.animTime * 0.35) * 7;
+    stepX = Math.sin(dog.animTime * 0.35) * 2.2;
+    tilt  = Math.sin(dog.animTime * 0.35) * 0.03;
   }
 
-  // fallback box dog
-  ctx.fillStyle = "#a97142";
-  ctx.fillRect(sx, sy, dog.w, dog.h);
-  ctx.fillStyle = "#000";
-  ctx.fillRect(sx + (dog.dir===1 ? dog.w-24 : 14), sy + 14, 7, 7);
-  ctx.fillStyle = "#7c4f2c";
-  ctx.fillRect(sx + (dog.dir===1 ? dog.w-10 : 0), sy + 8, 10, 18);
-  const wag = Math.sin(dog.animTime*0.25)*4;
-  ctx.fillRect(sx + (dog.dir===1 ? -8 : dog.w-2), sy + 26 + wag, 10, 8);
+  // Tail wag (walk + happy)
+  let tailWag = 0;
+  if(dog.state === "walk" || dog.state === "happy"){
+    tailWag = Math.sin(dog.animTime * 0.55) * 0.35;
+  }
+
+  ctx.save();
+
+  // Translate to dog position
+  ctx.translate(sx + drawW/2, sy + drawH/2 + stepY);
+
+  // Flip left/right
+  if(dog.dir === -1) ctx.scale(-1, 1);
+
+  // Tiny walk tilt
+  ctx.rotate(tilt);
+
+  // Draw dog centered
+  ctx.drawImage(img, -drawW/2 + stepX, -drawH/2, drawW, drawH);
+
+  // Tail wag overlay (cute, subtle, behind dog)
+  ctx.save();
+  ctx.translate(drawW*0.42, drawH*0.10);
+  ctx.rotate(tailWag);
+  ctx.fillStyle = "rgba(124,79,44,0.9)";
+  ctx.fillRect(0, -5, 26, 10);
+  ctx.restore();
+
+  ctx.restore();
 }
 
 function drawMinimap(){
@@ -626,3 +627,4 @@ tick();
 </script>
 </body>
 </html>
+
