@@ -1,193 +1,103 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Let’s Go Explore</title>
-  <style>
-    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
-    body { margin: 0; background: #f6f7fb; color: #222; }
-    header {
-      padding: 14px 16px; background: #fff; border-bottom: 1px solid #e6e6ef;
-      display: flex; gap: 12px; align-items: center;
-    }
-    header h1 { font-size: 16px; margin: 0; }
-    .pill { margin-left:auto; padding: 6px 10px; border-radius: 999px; background:#eef2ff; font-size: 12px; }
-    #app { max-width: 1200px; margin: 0 auto; padding: 14px; }
-    .row { display:flex; gap: 14px; flex-wrap: wrap; align-items:flex-start; }
-    .card {
-      background: #fff; border: 1px solid #e6e6ef; border-radius: 14px;
-      padding: 12px; box-shadow: 0 10px 30px rgba(17,24,39,0.06);
-    }
-    .left { flex: 2 1 720px; }
-    .right { flex: 1 1 340px; min-width: 320px; }
-    .parks { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
-    .park { padding: 10px; border-radius: 14px; border: 1px solid #e6e6ef; background:#fafafa; cursor:pointer; }
-    .park .name { font-weight: 800; }
-    .park .meta { font-size: 12px; opacity: .75; margin-top: 2px; }
-    .park .lock { font-size: 12px; margin-top: 8px; }
-    .hint { font-size: 12px; opacity: .7; }
-    canvas { width: 100%; height: auto; border-radius: 16px; border: 1px solid #e6e6ef; background:#fff; }
-    .controlsGrid { display:grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
-    button { border: 0; background: #111827; color: #fff; padding: 10px 12px; border-radius: 12px; cursor:pointer; }
-    button.secondary { background: #e5e7eb; color:#111827; }
-    button:disabled { opacity: .5; cursor:not-allowed; }
-    .badgeRow { display:flex; flex-wrap:wrap; gap: 8px; }
-    .badge { padding: 6px 10px; border-radius: 999px; border: 1px solid #e6e6ef; background:#fff; font-size: 12px; }
-    .toast {
-      position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px;
-      background: #111827; color: #fff; padding: 10px 14px; border-radius: 12px;
-      opacity: 0; pointer-events:none; transition: opacity .2s ease;
-    }
-    .toast.show { opacity: 1; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Let’s Go Explore</title>
+
+<style>
+  body {
+    margin: 0;
+    background: #e8f3ff;
+    font-family: system-ui, Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+  }
+
+  canvas {
+    background: #fff;
+    border: 3px solid #333;
+    margin-top: 12px;
+  }
+
+  h1 {
+    position: fixed;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 18px;
+  }
+</style>
 </head>
 
 <body>
-<header>
-  <h1>🐾 Let’s Go Explore</h1>
-  <div class="pill" id="statusPill">Loading…</div>
-</header>
+<h1>🐾 Let’s Go Explore</h1>
 
-<div id="app">
-  <div class="row">
-    <div class="card left">
-      <div id="mapScreen">
-        <h2 style="margin:0 0 8px 0;">Park Map</h2>
-        <div class="hint">Tap a park → tap a landmark → dog walks there 🐾</div>
-        <div class="parks" id="parksGrid" style="margin-top:10px;"></div>
-      </div>
-
-      <div id="sceneScreen" style="display:none;">
-        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-          <button class="secondary" id="backBtn">← Map</button>
-          <div style="font-weight:800;" id="screenTitle">Park</div>
-          <div class="hint" id="sceneHint" style="margin-left:10px;"></div>
-          <button class="secondary" id="resetBtn" style="margin-left:auto;">Reset Park</button>
-        </div>
-        <div style="margin-top:10px;">
-          <!-- BIGGER CANVAS -->
-          <canvas id="game" width="1100" height="650"></canvas>
-        </div>
-        <div class="hint" style="margin-top:8px;">
-          Tip: Click on the map to walk. Click a landmark pin to get a mini lesson.
-        </div>
-      </div>
-    </div>
-
-    <div class="card right">
-      <h3 style="margin:0 0 8px 0;">Passport</h3>
-      <div class="badgeRow" id="badges"></div>
-
-      <hr style="border:none; border-top:1px solid #e6e6ef; margin:12px 0;"/>
-
-      <h3 style="margin:0 0 6px 0;">🐶 Dog</h3>
-      <div class="hint" id="dogMood">Mood: happy</div>
-
-      <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
-        <button class="secondary" id="bandanaBtn">Toggle Bandana</button>
-        <button class="secondary" id="hatBtn">Toggle Hat</button>
-      </div>
-
-      <div class="controlsGrid">
-        <button class="secondary" id="sitBtn">Sit</button>
-        <button class="secondary" id="pawBtn">Paw</button>
-        <button class="secondary" id="eatBtn">Eat</button>
-        <button class="secondary" id="sleepBtn">Sleep</button>
-        <button class="secondary" id="sniffBtn">Sniff</button>
-        <div></div>
-
-        <div></div>
-        <button class="secondary" id="upBtn">↑</button>
-        <div></div>
-        <button class="secondary" id="leftBtn">←</button>
-        <button class="secondary" id="stopBtn">■</button>
-        <button class="secondary" id="rightBtn">→</button>
-        <div></div>
-        <button class="secondary" id="downBtn">↓</button>
-        <div></div>
-      </div>
-
-      <div class="hint" style="margin-top:10px;">
-        If you see a blank screen, open DevTools → Console. Any 404 means a filename/path mismatch.
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="toast" id="toast"></div>
+<canvas id="game" width="1000" height="600"></canvas>
 
 <script>
-  // -------------------------
-  // WORLD + CAMERA (bigger than the screen)
-  // -------------------------
-  const WORLD_W = 2200;
-  const WORLD_H = 1400;
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-  const canvas = document.getElementById("game");
-  const ctx = canvas.getContext("2d");
+// -------- ASSETS --------
+const bg = new Image();
+bg.src = "assets/parks/bg_yose.png";
 
-  const camera = { x: 0, y: 0, tx: 0, ty: 0 };
-  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-  function worldToScreen(wx, wy) { return { x: wx - camera.x, y: wy - camera.y }; }
-  function screenToWorld(sx, sy) { return { x: sx + camera.x, y: sy + camera.y }; }
+const dogWalk = new Image();
+dogWalk.src = "assets/dog/dog_walk.png";
 
-  function centerCameraOn(wx, wy) {
-    camera.tx = clamp(wx - canvas.width / 2, 0, WORLD_W - canvas.width);
-    camera.ty = clamp(wy - canvas.height / 2, 0, WORLD_H - canvas.height);
+// -------- DOG SETUP --------
+const FRAME_W = 256;
+const FRAME_H = 256;
+const FRAMES = 6;
+
+let frame = 0;
+let tick = 0;
+
+const dog = {
+  x: 200,
+  y: 420,
+  speed: 3
+};
+
+// -------- INPUT --------
+window.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowRight") dog.x += dog.speed;
+  if (e.key === "ArrowLeft") dog.x -= dog.speed;
+});
+
+// -------- DRAW --------
+function drawBackground() {
+  if (bg.complete) {
+    ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
   }
-  function updateCamera() {
-    camera.x += (camera.tx - camera.x) * 0.12;
-    camera.y += (camera.ty - camera.y) * 0.12;
-    camera.x = clamp(camera.x, 0, WORLD_W - canvas.width);
-    camera.y = clamp(camera.y, 0, WORLD_H - canvas.height);
+}
+
+function drawDog() {
+  if (!dogWalk.complete) return;
+
+  const sx = frame * FRAME_W;
+  ctx.drawImage(
+    dogWalk,
+    sx, 0, FRAME_W, FRAME_H,
+    dog.x, dog.y, 120, 120
+  );
+
+  tick++;
+  if (tick % 6 === 0) {
+    frame = (frame + 1) % FRAMES;
   }
+}
 
-  // -------------------------
-  // ASSETS (these MUST match your repo paths)
-  // -------------------------
-  function loadImg(src) { const img = new Image(); img.src = src; return img; }
+// -------- LOOP --------
+function loop() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawBackground();
+  drawDog();
+  requestAnimationFrame(loop);
+}
 
-  const parkBG = {
-    yose: loadImg("assets/parks/bg_yose.png"),
-    yell: loadImg("assets/parks/bg_yell.png"),
-    zion: loadImg("assets/parks/bg_zion.png"),
-    acad: loadImg("assets/parks/bg_acad.png"),
-  };
-
-  const dogSprites = {
-    walk: loadImg("assets/dog/dog_walk.png"),   // 6-frame sprite sheet
-    sit: loadImg("assets/dog/dog_sit.png"),
-    sleep: loadImg("assets/dog/dog_sleep.png"),
-    paw: loadImg("assets/dog/dog_paw.png"),
-    eat: loadImg("assets/dog/dog_eat.png"),
-  };
-
-  // Optional later (fallback pins used if missing)
-  const landmarkImgs = {
-    // Put files into assets/landmarks/ later if you want icons:
-    // lm_yose_falls: loadImg("assets/landmarks/lm_yose_falls.png"),
-  };
-
-  // -------------------------
-  // PARKS + LANDMARKS
-  // -------------------------
-  const PARKS = [
-    { id:"yose", name:"Yosemite", state:"CA", biome:"Granite cliffs + waterfalls" },
-    { id:"yell", name:"Yellowstone", state:"WY/MT/ID", biome:"Geysers + hot springs" },
-    { id:"zion", name:"Zion", state:"UT", biome:"Canyons + red rock" },
-    { id:"acad", name:"Acadia", state:"ME", biome:"Ocean cliffs + forests" },
-  ];
-
-  // 8 landmarks each (you can move x/y later)
-  const HOTSPOTS = {
-    yose: [
-      { id:"tunnel", label:"Tunnel View", x:320, y:260,
-        cool:"One of the most famous views in the U.S.—you can spot huge cliffs and waterfalls from here." },
-      { id:"elcap", label:"El Capitan", x:620, y:340,
-        cool:"A giant granite wall. Some climbers take days to reach the top!" },
-      { id:"halfdome", label:"Half Dome", x:980, y:260,
-        cool:"A famous dome-shaped granite mountain carved by glaciers long ago." },
-      { id:"falls", label:"Yosemite Falls", x:1320, y:300,
-        cool:"A waterfall is a river dropping suddenly—gravity makes the water rush down." },
-      { id:"meadow", label:"Flower Meadow", x:820, y
+loop();
+</script>
+</body>
+</html>
