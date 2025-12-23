@@ -224,14 +224,22 @@ console.log("IMAGES INIT RAN", images);
 
 function loadImage(key, src){
   return new Promise((resolve) => {
-    const img = new Image(); // ✅ correct
+    const img = new Image();
 
-    img.onload = ()=>{ images[key]=img; resolve(true); };
-    img.onerror = ()=>{ resolve(false); };
+    img.onload = ()=>{ 
+      images[key] = img; 
+      console.log("LOADED", key, img.width, img.height, src);
+      resolve(true); 
+    };
+
+    img.onerror = ()=>{ 
+      console.log("FAILED", key, src);
+      resolve(false); 
+    };
+
     img.src = src;
   });
 }
-
 
 // Load what you actually have. (happy reuses idle)
 (async function loadAssets(){
@@ -239,13 +247,10 @@ function loadImage(key, src){
   await loadImage("dog_walk", ASSET_BASE + "dog_walk.png");
   await loadImage("dog_eat",  ASSET_BASE + "dog_eat.png");
 
-  // If you don't have dog_happy.png, reuse idle
   images["dog_happy"] = images["dog_idle"] || null;
+  console.log("ASSETS KEYS", Object.keys(images));
 })();
 
-
-
-/*
   OPTIONAL ASSET FILES (drop into /assets):
   - dog_idle.png   (spritesheet row or single frame ok)
   - dog_walk.png
