@@ -221,7 +221,8 @@ const ASSET_BASE = "assets/dog/";
 const images = {};
 function loadImage(key, src){
   return new Promise((resolve) => {
-    const img = new Image();
+    const img = images[key];
+
     img.onload = ()=>{ images[key]=img; resolve(true); };
     img.onerror = ()=>{ resolve(false); }; // fallback if missing
     img.src = src;
