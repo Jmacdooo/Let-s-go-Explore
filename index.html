@@ -3,107 +3,113 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Park Paws</title>
+  <title>Let’s Go Explore</title>
   <style>
     :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
     body { margin: 0; background: #f6f7fb; color: #222; }
-    header { padding: 14px 16px; background: white; border-bottom: 1px solid #e6e6ef; display:flex; gap:12px; align-items:center; }
+    header {
+      padding: 14px 16px; background: #fff; border-bottom: 1px solid #e6e6ef;
+      display: flex; gap: 12px; align-items: center;
+    }
     header h1 { font-size: 16px; margin: 0; }
-    header .pill { margin-left:auto; padding: 6px 10px; border-radius: 999px; background:#eef2ff; font-size: 12px; }
-    #app { max-width: 1040px; margin: 0 auto; padding: 14px; }
-    .row { display:flex; gap: 14px; flex-wrap: wrap; }
-    .card { background: white; border: 1px solid #e6e6ef; border-radius: 14px; padding: 12px; box-shadow: 0 6px 20px rgba(0,0,0,.05); }
-    .card h2 { margin: 0 0 8px; font-size: 14px; }
-    button { border: 0; background:#111827; color:white; padding:10px 12px; border-radius: 12px; cursor:pointer; }
-    button.secondary { background:#e5e7eb; color:#111827; }
-    button:disabled { opacity:.5; cursor:not-allowed; }
-    .parks { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
-    .park { padding: 10px; border-radius: 14px; border:1px solid #e6e6ef; background:#fafafa; }
-    .park .name { font-weight: 700; }
-    .park .meta { font-size: 12px; opacity:.75; margin-top: 2px; }
+    .pill { margin-left:auto; padding: 6px 10px; border-radius: 999px; background:#eef2ff; font-size: 12px; }
+    #app { max-width: 1200px; margin: 0 auto; padding: 14px; }
+    .row { display:flex; gap: 14px; flex-wrap: wrap; align-items:flex-start; }
+    .card {
+      background: #fff; border: 1px solid #e6e6ef; border-radius: 14px;
+      padding: 12px; box-shadow: 0 10px 30px rgba(17,24,39,0.06);
+    }
+    .left { flex: 2 1 720px; }
+    .right { flex: 1 1 340px; min-width: 320px; }
+    .parks { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+    .park { padding: 10px; border-radius: 14px; border: 1px solid #e6e6ef; background:#fafafa; cursor:pointer; }
+    .park .name { font-weight: 800; }
+    .park .meta { font-size: 12px; opacity: .75; margin-top: 2px; }
     .park .lock { font-size: 12px; margin-top: 8px; }
-    canvas { width: 100%; height: auto; border-radius: 16px; border: 1px solid #e6e6ef; background: #fff; }
-    .hint { font-size: 12px; opacity:.82; line-height: 1.35; }
-    .badges { display:flex; flex-wrap:wrap; gap:8px; }
-    .badge { padding: 8px 10px; border-radius: 999px; border:1px solid #e6e6ef; background:#fff; font-size: 12px; }
-    .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px; background: #111827; color: white; padding: 10px 12px; border-radius: 12px; opacity: 0; transition: opacity .25s; pointer-events:none; }
-    .toast.show { opacity: 1; }
+    .hint { font-size: 12px; opacity: .7; }
+    canvas { width: 100%; height: auto; border-radius: 16px; border: 1px solid #e6e6ef; background:#fff; }
     .controlsGrid { display:grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
-    .controlsGrid button { padding: 12px 10px; border-radius: 14px; }
-    .controlsGrid .spacer { visibility:hidden; }
+    button { border: 0; background: #111827; color: #fff; padding: 10px 12px; border-radius: 12px; cursor:pointer; }
+    button.secondary { background: #e5e7eb; color:#111827; }
+    button:disabled { opacity: .5; cursor:not-allowed; }
+    .badgeRow { display:flex; flex-wrap:wrap; gap: 8px; }
+    .badge { padding: 6px 10px; border-radius: 999px; border: 1px solid #e6e6ef; background:#fff; font-size: 12px; }
+    .toast {
+      position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px;
+      background: #111827; color: #fff; padding: 10px 14px; border-radius: 12px;
+      opacity: 0; pointer-events:none; transition: opacity .2s ease;
+    }
+    .toast.show { opacity: 1; }
   </style>
 </head>
+
 <body>
 <header>
-  <h1>🐾 Park Paws</h1>
+  <h1>🐾 Let’s Go Explore</h1>
   <div class="pill" id="statusPill">Loading…</div>
 </header>
 
 <div id="app">
   <div class="row">
-    <div class="card" style="flex: 2 1 600px;">
-      <h2 id="screenTitle">Park Map</h2>
-
+    <div class="card left">
       <div id="mapScreen">
-        <div class="hint" style="margin-bottom:10px;">
-          Pick a park. In the scene, tap a landmark and your dog will escort you there while the camera flies to follow.
-          Tap anywhere to wander!
-        </div>
-        <div class="parks" id="parksGrid"></div>
+        <h2 style="margin:0 0 8px 0;">Park Map</h2>
+        <div class="hint">Tap a park → tap a landmark → dog walks there 🐾</div>
+        <div class="parks" id="parksGrid" style="margin-top:10px;"></div>
       </div>
 
       <div id="sceneScreen" style="display:none;">
-        <div class="row" style="align-items:center; margin-bottom:10px;">
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
           <button class="secondary" id="backBtn">← Map</button>
-          <div class="hint" id="sceneHint"></div>
-          <button id="resetBtn" class="secondary" style="margin-left:auto;">Reset Park</button>
+          <div style="font-weight:800;" id="screenTitle">Park</div>
+          <div class="hint" id="sceneHint" style="margin-left:10px;"></div>
+          <button class="secondary" id="resetBtn" style="margin-left:auto;">Reset Park</button>
         </div>
-
-        <canvas id="game" width="900" height="520"></canvas>
-
+        <div style="margin-top:10px;">
+          <!-- BIGGER CANVAS -->
+          <canvas id="game" width="1100" height="650"></canvas>
+        </div>
         <div class="hint" style="margin-top:8px;">
-          Tap a landmark label/icon for a mini lesson. Tap anywhere to explore freely.
-        </div>
-
-        <div class="controlsGrid" aria-label="Touch controls">
-          <button class="secondary spacer">.</button>
-          <button class="secondary" id="upBtn">⬆️</button>
-          <button class="secondary spacer">.</button>
-          <button class="secondary" id="leftBtn">⬅️</button>
-          <button class="secondary" id="stopBtn">⏹️</button>
-          <button class="secondary" id="rightBtn">➡️</button>
-          <button class="secondary spacer">.</button>
-          <button class="secondary" id="downBtn">⬇️</button>
-          <button class="secondary spacer">.</button>
+          Tip: Click on the map to walk. Click a landmark pin to get a mini lesson.
         </div>
       </div>
     </div>
 
-    <div class="card" style="flex: 1 1 320px;">
-      <h2>🎒 Passport</h2>
-      <div class="hint" style="margin-bottom:10px;">Badges you’ve earned:</div>
-      <div class="badges" id="badges"></div>
+    <div class="card right">
+      <h3 style="margin:0 0 8px 0;">Passport</h3>
+      <div class="badgeRow" id="badges"></div>
 
-      <hr style="border:0;border-top:1px solid #eee;margin:12px 0;">
+      <hr style="border:none; border-top:1px solid #e6e6ef; margin:12px 0;"/>
 
-      <h2>🐶 Dog</h2>
+      <h3 style="margin:0 0 6px 0;">🐶 Dog</h3>
       <div class="hint" id="dogMood">Mood: happy</div>
 
-      <div class="row" style="margin-top:10px;">
+      <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
         <button class="secondary" id="bandanaBtn">Toggle Bandana</button>
         <button class="secondary" id="hatBtn">Toggle Hat</button>
       </div>
 
-      <div class="row" style="margin-top:10px; flex-wrap:wrap;">
+      <div class="controlsGrid">
         <button class="secondary" id="sitBtn">Sit</button>
         <button class="secondary" id="pawBtn">Paw</button>
         <button class="secondary" id="eatBtn">Eat</button>
         <button class="secondary" id="sleepBtn">Sleep</button>
         <button class="secondary" id="sniffBtn">Sniff</button>
+        <div></div>
+
+        <div></div>
+        <button class="secondary" id="upBtn">↑</button>
+        <div></div>
+        <button class="secondary" id="leftBtn">←</button>
+        <button class="secondary" id="stopBtn">■</button>
+        <button class="secondary" id="rightBtn">→</button>
+        <div></div>
+        <button class="secondary" id="downBtn">↓</button>
+        <div></div>
       </div>
 
       <div class="hint" style="margin-top:10px;">
-        Pro tip: “Sniff” makes nearby landmarks glow.
+        If you see a blank screen, open DevTools → Console. Any 404 means a filename/path mismatch.
       </div>
     </div>
   </div>
@@ -115,14 +121,13 @@
   // -------------------------
   // WORLD + CAMERA (bigger than the screen)
   // -------------------------
-  const WORLD_W = 1800;
-  const WORLD_H = 1040;
+  const WORLD_W = 2200;
+  const WORLD_H = 1400;
 
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d");
 
   const camera = { x: 0, y: 0, tx: 0, ty: 0 };
-
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
   function worldToScreen(wx, wy) { return { x: wx - camera.x, y: wy - camera.y }; }
   function screenToWorld(sx, sy) { return { x: sx + camera.x, y: sy + camera.y }; }
@@ -131,9 +136,7 @@
     camera.tx = clamp(wx - canvas.width / 2, 0, WORLD_W - canvas.width);
     camera.ty = clamp(wy - canvas.height / 2, 0, WORLD_H - canvas.height);
   }
-
   function updateCamera() {
-    // Smooth easing
     camera.x += (camera.tx - camera.x) * 0.12;
     camera.y += (camera.ty - camera.y) * 0.12;
     camera.x = clamp(camera.x, 0, WORLD_W - canvas.width);
@@ -141,73 +144,33 @@
   }
 
   // -------------------------
-  // Assets
+  // ASSETS (these MUST match your repo paths)
   // -------------------------
   function loadImg(src) { const img = new Image(); img.src = src; return img; }
 
-  // Park backgrounds (your existing images)
   const parkBG = {
-    yose: loadImg("bg_yose.png"),
-    yell: loadImg("bg_yell.png"),
-    zion: loadImg("bg_zion.png"),
-    acad: loadImg("bg_acad.png"),
+    yose: loadImg("assets/parks/bg_yose.png"),
+    yell: loadImg("assets/parks/bg_yell.png"),
+    zion: loadImg("assets/parks/bg_zion.png"),
+    acad: loadImg("assets/parks/bg_acad.png"),
   };
 
-  // Dog sprites (your existing images)
   const dogSprites = {
-    walk: loadImg("dog_walk.png"),
-    sit: loadImg("dog_sit.png"),
-    sleep: loadImg("dog_sleep.png"),
-    paw: loadImg("dog_paw.png"),
-    eat: loadImg("dog_eat.png"),
+    walk: loadImg("assets/dog/dog_walk.png"),   // 6-frame sprite sheet
+    sit: loadImg("assets/dog/dog_sit.png"),
+    sleep: loadImg("assets/dog/dog_sleep.png"),
+    paw: loadImg("assets/dog/dog_paw.png"),
+    eat: loadImg("assets/dog/dog_eat.png"),
   };
 
-  // Landmark sticker icons (upload later—fallback marker is used if missing)
+  // Optional later (fallback pins used if missing)
   const landmarkImgs = {
-    // Yosemite
-    lm_yose_tunnel: loadImg("lm_yose_tunnel.png"),
-    lm_yose_elcap: loadImg("lm_yose_elcap.png"),
-    lm_yose_halfdome: loadImg("lm_yose_halfdome.png"),
-    lm_yose_falls: loadImg("lm_yose_falls.png"),
-    lm_yose_sequoia: loadImg("lm_yose_sequoia.png"),
-    lm_yose_river: loadImg("lm_yose_river.png"),
-    lm_yose_meadow: loadImg("lm_yose_meadow.png"),
-    lm_yose_camp: loadImg("lm_yose_camp.png"),
-
-    // Yellowstone
-    lm_yell_faithful: loadImg("lm_yell_faithful.png"),
-    lm_yell_prismatic: loadImg("lm_yell_prismatic.png"),
-    lm_yell_bison: loadImg("lm_yell_bison.png"),
-    lm_yell_mudpots: loadImg("lm_yell_mudpots.png"),
-    lm_yell_steam: loadImg("lm_yell_steam.png"),
-    lm_yell_boardwalk: loadImg("lm_yell_boardwalk.png"),
-    lm_yell_river: loadImg("lm_yell_river.png"),
-    lm_yell_ranger: loadImg("lm_yell_ranger.png"),
-
-    // Zion
-    lm_zion_overlook: loadImg("lm_zion_overlook.png"),
-    lm_zion_narrows: loadImg("lm_zion_narrows.png"),
-    lm_zion_tunnel: loadImg("lm_zion_tunnel.png"),
-    lm_zion_garden: loadImg("lm_zion_garden.png"),
-    lm_zion_slot: loadImg("lm_zion_slot.png"),
-    lm_zion_sheep: loadImg("lm_zion_sheep.png"),
-    lm_zion_bend: loadImg("lm_zion_bend.png"),
-    lm_zion_sunset: loadImg("lm_zion_sunset.png"),
-
-    // Acadia
-    lm_acad_cliffs: loadImg("lm_acad_cliffs.png"),
-    lm_acad_light: loadImg("lm_acad_light.png"),
-    lm_acad_tide: loadImg("lm_acad_tide.png"),
-    lm_acad_forest: loadImg("lm_acad_forest.png"),
-    lm_acad_pond: loadImg("lm_acad_pond.png"),
-    lm_acad_bridge: loadImg("lm_acad_bridge.png"),
-    lm_acad_whale: loadImg("lm_acad_whale.png"),
-    lm_acad_camp: loadImg("lm_acad_camp.png"),
+    // Put files into assets/landmarks/ later if you want icons:
+    // lm_yose_falls: loadImg("assets/landmarks/lm_yose_falls.png"),
   };
 
   // -------------------------
-  // Parks + Landmarks (world coordinates)
-  // NOTE: x/y are in WORLD space, not canvas space
+  // PARKS + LANDMARKS
   // -------------------------
   const PARKS = [
     { id:"yose", name:"Yosemite", state:"CA", biome:"Granite cliffs + waterfalls" },
@@ -216,598 +179,15 @@
     { id:"acad", name:"Acadia", state:"ME", biome:"Ocean cliffs + forests" },
   ];
 
+  // 8 landmarks each (you can move x/y later)
   const HOTSPOTS = {
     yose: [
-      { id:"tunnel", label:"Tunnel View", x:320, y:220, icon:"lm_yose_tunnel",
-        cool:"You can see cliffs, a river, and a waterfall all at once—this is one of the most famous views in America." },
-
-      { id:"elcap", label:"El Capitan", x:560, y:300, icon:"lm_yose_elcap",
-        cool:"El Capitan is a massive granite wall. Some climbers take days to reach the top!" },
-
-      { id:"halfdome", label:"Half Dome", x:860, y:240, icon:"lm_yose_halfdome",
-        cool:"Half Dome is granite carved by glaciers long ago—nature’s ice sculptors!" },
-
-      { id:"falls", label:"Yosemite Falls", x:1120, y:280, icon:"lm_yose_falls",
-        cool:"Waterfalls happen when rivers drop suddenly—gravity makes the water rush down fast." },
-
-      { id:"sequoia", label:"Sequoia Grove", x:520, y:760, icon:"lm_yose_sequoia",
-        cool:"Sequoias can live for thousands of years—some were growing before the pyramids were old." },
-
-      { id:"river", label:"Merced River", x:980, y:780, icon:"lm_yose_river",
-        cool:"Rivers shape valleys by carrying tiny rocks that slowly carve the land over time." },
-
-      { id:"meadow", label:"Flower Meadow", x:760, y:700, icon:"lm_yose_meadow",
-        cool:"Meadows are open sunny spots where flowers bloom and animals often come to eat and rest." },
-
-      { id:"camp", label:"Campsite", x:1380, y:820, icon:"lm_yose_camp",
-        cool:"At night, parks can be super dark—perfect for seeing stars and constellations." },
-    ],
-
-    // Use the same style for the other parks
-    yell: [
-      { id:"faithful", label:"Old Faithful", x:360, y:260, icon:"lm_yell_faithful",
-        cool:"A geyser erupts when hot water builds pressure underground and suddenly bursts out." },
-
-      { id:"prismatic", label:"Grand Prismatic", x:720, y:240, icon:"lm_yell_prismatic",
-        cool:"The bright colors come from tiny microbes that love different water temperatures!" },
-
-      { id:"bison", label:"Bison Meadow", x:1160, y:340, icon:"lm_yell_bison",
-        cool:"Bison are huge and fast. In real parks you watch them from far away to stay safe." },
-
-      { id:"mudpots", label:"Mud Pots", x:520, y:600, icon:"lm_yell_mudpots",
-        cool:"Mud pots bubble when hot gases rise up through wet soil—like a natural soup pot." },
-
-      { id:"steam", label:"Steam Vents", x:1320, y:620, icon:"lm_yell_steam",
-        cool:"Steam vents are warm places where heat escapes from underground." },
-
-      { id:"boardwalk", label:"Boardwalk Trail", x:780, y:760, icon:"lm_yell_boardwalk",
-        cool:"Boardwalks protect the ground (and your feet!) because parts of Yellowstone can be hot." },
-
-      { id:"river", label:"River View", x:980, y:650, icon:"lm_yell_river",
-        cool:"Rivers can cut deep canyons over a long time—water is powerful." },
-
-      { id:"ranger", label:"Ranger Station", x:1560, y:260, icon:"lm_yell_ranger",
-        cool:"Rangers help protect parks and teach visitors how to explore safely." },
-    ],
-
-    zion: [
-      { id:"overlook", label:"Canyon Overlook", x:360, y:220, icon:"lm_zion_overlook",
-        cool:"Zion’s red rocks were shaped by rivers cutting through layers of stone." },
-
-      { id:"narrows", label:"The Narrows", x:620, y:780, icon:"lm_zion_narrows",
-        cool:"A river can carve tall canyon walls by carrying sand and stones like sandpaper." },
-
-      { id:"tunnel", label:"Rock Tunnel", x:1180, y:380, icon:"lm_zion_tunnel",
-        cool:"Tunnels are carved through rock to help people travel through mountains." },
-
-      { id:"garden", label:"Hanging Garden", x:980, y:520, icon:"lm_zion_garden",
-        cool:"Plants can grow from cliff cracks where water drips—like a tiny cliff jungle!" },
-
-      { id:"slot", label:"Slot Canyon", x:520, y:520, icon:"lm_zion_slot",
-        cool:"Slot canyons are narrow because rushing water carved a tight path through stone." },
-
-      { id:"sheep", label:"Bighorn Lookout", x:1400, y:260, icon:"lm_zion_sheep",
-        cool:"Bighorn sheep have special hooves that help them climb steep rocky spots." },
-
-      { id:"bend", label:"River Bend", x:980, y:740, icon:"lm_zion_bend",
-        cool:"River bends happen when water takes the easiest path—then slowly curves more and more." },
-
-      { id:"sunset", label:"Sunset Ridge", x:1360, y:860, icon:"lm_zion_sunset",
-        cool:"At sunset, warm light makes red rocks glow extra bright—like they’re lit from inside." },
-    ],
-
-    acad: [
-      { id:"cliffs", label:"Ocean Cliffs", x:340, y:260, icon:"lm_acad_cliffs",
-        cool:"Ocean waves wear down rock over time, making rugged cliffs and cool shapes." },
-
-      { id:"light", label:"Lighthouse Point", x:640, y:360, icon:"lm_acad_light",
-        cool:"Lighthouses help ships navigate by shining a strong light from the coast." },
-
-      { id:"tide", label:"Tide Pools", x:900, y:840, icon:"lm_acad_tide",
-        cool:"When the tide goes out, little pools trap seawater—tiny animals can hide there." },
-
-      { id:"forest", label:"Pine Trail", x:620, y:720, icon:"lm_acad_forest",
-        cool:"Pine trees have needles that help them survive wind and cold near the coast." },
-
-      { id:"pond", label:"Jordan Pond", x:1040, y:360, icon:"lm_acad_pond",
-        cool:"Ponds are calm water habitats—good places for frogs, insects, and birds." },
-
-      { id:"bridge", label:"Stone Bridge", x:1200, y:560, icon:"lm_acad_bridge",
-        cool:"Carriage roads were built so people could explore parks gently, often by horse and carriage." },
-
-      { id:"whale", label:"Whale Lookout", x:1420, y:420, icon:"lm_acad_whale",
-        cool:"Whales come up to breathe air—sometimes you can spot a splash or spout." },
-
-      { id:"camp", label:"Seaside Camp", x:1600, y:860, icon:"lm_acad_camp",
-        cool:"Coastal nights can be breezy—perfect for listening to waves while you rest." },
-    ],
-  };
-
-  // -------------------------
-  // Save / State
-  // -------------------------
-  const STORAGE_KEY = "parkpaws_save_world_v1";
-  const save = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  const load = () => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    try { return JSON.parse(raw); } catch { return null; }
-  };
-
-  const state = load() ?? {
-    unlocked: { yose:true, yell:true, zion:false, acad:false },
-    badges: [],
-    visited: {},
-    dog: { bandana:false, hat:false },
-  };
-
-  function applyUnlocks() {
-    const b = state.badges.length;
-    state.unlocked.zion = b >= 1;
-    state.unlocked.acad = b >= 2;
-  }
-  applyUnlocks();
-
-  // -------------------------
-  // UI
-  // -------------------------
-  const statusPill = document.getElementById("statusPill");
-  const parksGrid = document.getElementById("parksGrid");
-  const badgesEl = document.getElementById("badges");
-  const dogMoodEl = document.getElementById("dogMood");
-
-  const mapScreen = document.getElementById("mapScreen");
-  const sceneScreen = document.getElementById("sceneScreen");
-  const screenTitle = document.getElementById("screenTitle");
-  const sceneHint = document.getElementById("sceneHint");
-  const backBtn = document.getElementById("backBtn");
-  const resetBtn = document.getElementById("resetBtn");
-
-  const bandanaBtn = document.getElementById("bandanaBtn");
-  const hatBtn = document.getElementById("hatBtn");
-  const sitBtn = document.getElementById("sitBtn");
-  const pawBtn = document.getElementById("pawBtn");
-  const eatBtn = document.getElementById("eatBtn");
-  const sleepBtn = document.getElementById("sleepBtn");
-  const sniffBtn = document.getElementById("sniffBtn");
-
-  const upBtn = document.getElementById("upBtn");
-  const downBtn = document.getElementById("downBtn");
-  const leftBtn = document.getElementById("leftBtn");
-  const rightBtn = document.getElementById("rightBtn");
-  const stopBtn = document.getElementById("stopBtn");
-
-  const toastEl = document.getElementById("toast");
-  function toast(msg) {
-    toastEl.textContent = msg;
-    toastEl.classList.add("show");
-    setTimeout(() => toastEl.classList.remove("show"), 1200);
-  }
-
-  function renderStatus() {
-    statusPill.textContent = `Badges: ${state.badges.length} • Parks unlocked: ${Object.values(state.unlocked).filter(Boolean).length}/${PARKS.length}`;
-  }
-  function renderBadges() {
-    badgesEl.innerHTML = "";
-    if (state.badges.length === 0) {
-      badgesEl.innerHTML = `<div class="hint">No badges yet—visit landmarks!</div>`;
-      return;
-    }
-    state.badges.forEach(b => {
-      const el = document.createElement("div");
-      el.className = "badge";
-      el.textContent = `🏅 ${b}`;
-      badgesEl.appendChild(el);
-    });
-  }
-  function renderParks() {
-    parksGrid.innerHTML = "";
-    PARKS.forEach(p => {
-      const locked = !state.unlocked[p.id];
-      const el = document.createElement("div");
-      el.className = "park";
-      el.innerHTML = `
-        <div class="name">${p.name}</div>
-        <div class="meta">${p.state} • ${p.biome}</div>
-        <div class="lock">${locked ? "🔒 Locked — earn more badges" : "✅ Tap to visit"}</div>
-      `;
-      el.style.opacity = locked ? 0.55 : 1;
-      el.style.cursor = locked ? "not-allowed" : "pointer";
-      el.addEventListener("click", () => {
-        if (locked) return toast("Earn more badges to unlock!");
-        startPark(p.id);
-      });
-      parksGrid.appendChild(el);
-    });
-  }
-  function renderAll() { renderStatus(); renderBadges(); renderParks(); }
-
-  // -------------------------
-  // Dog + Movement
-  // -------------------------
-  const DOG_FRAME_W = 256, DOG_FRAME_H = 256, DOG_FRAMES = 6;
-  let dogFrame = 0, dogFrameTick = 0, dogFacing = 1;
-
-  let currentPark = null;
-  let touchDir = {x:0,y:0};
-
-  const dog = {
-    x: 240, y: 520,
-    speed: 3.4,
-    mood: "happy",
-    sniff: false,
-    action: "sit",     // walk | sit | sleep | paw | eat
-    target: null,      // world coords
-    touring: null      // hotspot object
-  };
-
-  function setDir(x,y){ touchDir.x=x; touchDir.y=y; }
-  upBtn.addEventListener("click", () => setDir(0,-1));
-  downBtn.addEventListener("click", () => setDir(0,1));
-  leftBtn.addEventListener("click", () => setDir(-1,0));
-  rightBtn.addEventListener("click", () => setDir(1,0));
-  stopBtn.addEventListener("click", () => setDir(0,0));
-
-  bandanaBtn.addEventListener("click", () => { state.dog.bandana = !state.dog.bandana; save(); toast(state.dog.bandana ? "Bandana on!" : "Bandana off!"); });
-  hatBtn.addEventListener("click", () => { state.dog.hat = !state.dog.hat; save(); toast(state.dog.hat ? "Hat on!" : "Hat off!"); });
-
-  sitBtn.addEventListener("click", () => { dog.action="sit"; dog.target=null; dog.mood="happy"; });
-  pawBtn.addEventListener("click", () => { dog.action="paw"; dog.target=null; dog.mood="excited"; });
-  eatBtn.addEventListener("click", () => { dog.action="eat"; dog.target=null; dog.mood="happy"; });
-  sleepBtn.addEventListener("click", () => { dog.action="sleep"; dog.target=null; dog.mood="sleepy"; });
-  sniffBtn.addEventListener("click", () => { dog.sniff = !dog.sniff; dog.mood = dog.sniff ? "sniffing" : "happy"; });
-
-  function startPark(parkId) {
-    currentPark = PARKS.find(p => p.id === parkId);
-    state.visited[parkId] = state.visited[parkId] || {};
-
-    dog.x = 240; dog.y = 520;
-    dog.action = "sit";
-    dog.mood = "curious";
-    dog.sniff = false;
-    dog.target = null;
-    dog.touring = null;
-
-    // start camera near dog
-    camera.x = camera.tx = 0;
-    camera.y = camera.ty = 0;
-    centerCameraOn(dog.x, dog.y);
-
-    mapScreen.style.display = "none";
-    sceneScreen.style.display = "block";
-    screenTitle.textContent = `${currentPark.name} Explorer`;
-    updateSceneHint();
-    save();
-    toast(`Welcome to ${currentPark.name}!`);
-  }
-
-  function updateSceneHint() {
-    if (!currentPark) return;
-    const hs = HOTSPOTS[currentPark.id] || [];
-    const done = Object.keys(state.visited[currentPark.id] || {}).length;
-    sceneHint.textContent = `Landmarks visited: ${done}/${hs.length} • Tap a landmark for a mini lesson`;
-  }
-
-  function backToMap() {
-    mapScreen.style.display = "block";
-    sceneScreen.style.display = "none";
-    screenTitle.textContent = "Park Map";
-    dog.target=null; dog.touring=null; dog.action="sit";
-    save();
-  }
-  backBtn.addEventListener("click", backToMap);
-
-  resetBtn.addEventListener("click", () => {
-    if (!currentPark) return;
-    state.visited[currentPark.id] = {};
-    save();
-    updateSceneHint();
-    toast("Park progress reset!");
-  });
-
-  // Tap-to-walk + tap landmark
-  canvas.addEventListener("click", (e) => {
-    if (!currentPark) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const sx = (e.clientX - rect.left) * (canvas.width / rect.width);
-    const sy = (e.clientY - rect.top) * (canvas.height / rect.height);
-    const { x: mx, y: my } = screenToWorld(sx, sy);
-
-    // landmark tap?
-    const hs = HOTSPOTS[currentPark.id] || [];
-    for (const h of hs) {
-      if (Math.hypot(mx - h.x, my - h.y) < 55) {
-        dog.target = { x: h.x, y: h.y };
-        dog.touring = null;
-        dog.mood = "curious";
-        toast(`Walking to: ${h.label}`);
-        return;
-      }
-    }
-
-    // free explore
-    dog.target = { x: mx, y: my };
-    dog.touring = null;
-  });
-
-  function checkBadge() {
-    const hs = HOTSPOTS[currentPark.id] || [];
-    const done = Object.keys(state.visited[currentPark.id] || {}).length;
-
-    if (done >= hs.length && hs.length > 0) {
-      const badgeName = currentPark.name;
-      if (!state.badges.includes(badgeName)) {
-        state.badges.push(badgeName);
-        toast(`Badge earned: ${badgeName}!`);
-      }
-      applyUnlocks();
-      save();
-      renderAll();
-      dog.action = "paw";
-      dog.mood = "proud";
-    }
-  }
-
-  // -------------------------
-  // Drawing
-  // -------------------------
-  function drawWorldBackground() {
-    const bg = parkBG[currentPark?.id];
-    if (!bg || !bg.complete || bg.naturalWidth === 0) {
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0,0,canvas.width,canvas.height);
-      ctx.fillStyle = "rgba(17,24,39,0.6)";
-      ctx.font = "14px system-ui";
-      ctx.fillText("Loading park…", 20, 30);
-      return;
-    }
-
-    // Tile the background to fill WORLD (simple + effective)
-    const tileW = 900, tileH = 520;
-    for (let y=0; y<WORLD_H; y += tileH) {
-      for (let x=0; x<WORLD_W; x += tileW) {
-        const p = worldToScreen(x, y);
-        ctx.drawImage(bg, p.x, p.y, tileW, tileH);
-      }
-    }
-  }
-
-  function drawFallbackPin(px, py, glow=false, visited=false) {
-    // Glow ring
-    ctx.beginPath();
-    ctx.arc(px, py, 18, 0, Math.PI*2);
-    ctx.fillStyle = glow ? "rgba(250, 204, 21, 0.25)" : "rgba(255,255,255,0.20)";
-    ctx.fill();
-
-    // Pin dot
-    ctx.beginPath();
-    ctx.arc(px, py, 9, 0, Math.PI*2);
-    ctx.fillStyle = visited ? "rgba(34,197,94,0.55)" : "rgba(255,255,255,0.70)";
-    ctx.fill();
-    ctx.strokeStyle = "rgba(17,24,39,0.20)";
-    ctx.stroke();
-
-    if (visited) {
-      ctx.fillStyle = "rgba(17,24,39,0.85)";
-      ctx.font = "12px system-ui";
-      ctx.textAlign = "center";
-      ctx.fillText("✓", px, py + 4);
-    }
-  }
-
-  function drawHotspots() {
-    const hs = HOTSPOTS[currentPark.id] || [];
-    for (const h of hs) {
-      const { x:px, y:py } = worldToScreen(h.x, h.y);
-      const isVisited = !!state.visited[currentPark.id]?.[h.id];
-
-      // sniff glow if nearby
-      const dist = Math.hypot(dog.x - h.x, dog.y - h.y);
-      const glow = dog.sniff && dist < 170 && !isVisited;
-
-      // icon
-      const img = landmarkImgs[h.icon];
-      const size = 64;
-
-      if (img && img.complete && img.naturalWidth > 0) {
-        // soft halo behind icon
-        ctx.beginPath();
-        ctx.arc(px, py, 24, 0, Math.PI*2);
-        ctx.fillStyle = glow ? "rgba(250,204,21,0.22)" : (isVisited ? "rgba(34,197,94,0.18)" : "rgba(255,255,255,0.18)");
-        ctx.fill();
-
-        ctx.drawImage(img, px - size/2, py - size/2, size, size);
-
-        if (isVisited) {
-          ctx.beginPath();
-          ctx.arc(px + 22, py - 22, 12, 0, Math.PI*2);
-          ctx.fillStyle = "rgba(34,197,94,0.75)";
-          ctx.fill();
-          ctx.fillStyle = "white";
-          ctx.font = "14px system-ui";
-          ctx.textAlign = "center";
-          ctx.fillText("✓", px + 22, py - 17);
-        }
-      } else {
-        drawFallbackPin(px, py, glow, isVisited);
-      }
-
-      // label
-      ctx.font = "12px system-ui";
-      ctx.fillStyle = "rgba(17,24,39,0.92)";
-      ctx.textAlign = "left";
-      ctx.fillText(h.label, px + 40, py + 4);
-    }
-
-    // Lesson card
-    if (dog.touring) {
-      ctx.fillStyle = "rgba(255,255,255,0.90)";
-      ctx.fillRect(12, 12, 740, 78);
-      ctx.fillStyle = "#111827";
-      ctx.font = "14px system-ui";
-      ctx.textAlign = "left";
-      ctx.fillText(`📍 ${dog.touring.label}`, 22, 34);
-      ctx.font = "12px system-ui";
-      ctx.fillText(dog.touring.cool, 22, 54);
-      ctx.fillStyle = "rgba(17,24,39,0.55)";
-      ctx.fillText("Tap another landmark to continue exploring!", 22, 74);
-    }
-  }
-
-  function drawDog() {
-    const size = 92;
-    const { x:px, y:py } = worldToScreen(dog.x, dog.y);
-
-    ctx.save();
-    ctx.translate(px, py);
-    ctx.scale(dogFacing, 1);
-
-    if (dog.action === "walk" && dogSprites.walk.complete && dogSprites.walk.naturalWidth > 0) {
-      const sx = dogFrame * DOG_FRAME_W;
-      ctx.drawImage(dogSprites.walk, sx, 0, DOG_FRAME_W, DOG_FRAME_H, -size/2, -size/2, size, size);
-    } else {
-      let img = dogSprites.sit;
-      if (dog.action === "sleep") img = dogSprites.sleep;
-      if (dog.action === "paw") img = dogSprites.paw;
-      if (dog.action === "eat") img = dogSprites.eat;
-      if (img.complete && img.naturalWidth > 0) ctx.drawImage(img, -size/2, -size/2, size, size);
-    }
-
-    // bandana/hat overlays
-    if (state.dog.bandana) {
-      ctx.beginPath();
-      ctx.moveTo(-22, 20);
-      ctx.lineTo(22, 20);
-      ctx.lineTo(0, 38);
-      ctx.closePath();
-      ctx.fillStyle = "rgba(239,68,68,0.80)";
-      ctx.fill();
-    }
-    if (state.dog.hat) {
-      ctx.fillStyle = "rgba(17,24,39,0.85)";
-      ctx.fillRect(-20, -40, 40, 12);
-      ctx.fillRect(-12, -56, 24, 18);
-    }
-
-    // sniff aura
-    if (dog.sniff) {
-      ctx.beginPath();
-      ctx.arc(0,0,70,0,Math.PI*2);
-      ctx.strokeStyle = "rgba(17,24,39,0.18)";
-      ctx.lineWidth = 4;
-      ctx.stroke();
-    }
-
-    ctx.restore();
-  }
-
-  // -------------------------
-  // Update loop
-  // -------------------------
-  function update() {
-    if (sceneScreen.style.display !== "block") return;
-    if (!currentPark) return;
-
-    // Auto-walk to target (escort)
-    if (dog.target) {
-      const dx = dog.target.x - dog.x;
-      const dy = dog.target.y - dog.y;
-      const dist = Math.hypot(dx, dy);
-
-      if (dist < 4) {
-        dog.x = dog.target.x;
-        dog.y = dog.target.y;
-        dog.target = null;
-        dogFrame = 0;
-
-        // arrived at a landmark?
-        const hs = HOTSPOTS[currentPark.id] || [];
-        const arrived = hs.find(h => Math.hypot(h.x - dog.x, h.y - dog.y) < 10);
-        if (arrived) {
-          state.visited[currentPark.id] = state.visited[currentPark.id] || {};
-          state.visited[currentPark.id][arrived.id] = true;
-          dog.touring = arrived;
-          dog.mood = "excited";
-          dog.action = "paw";
-          toast(arrived.label);
-          save();
-          updateSceneHint();
-          checkBadge();
-        } else {
-          dog.action = "sit";
-        }
-      } else {
-        const vx = dx / dist;
-        const vy = dy / dist;
-        dog.x += vx * dog.speed;
-        dog.y += vy * dog.speed;
-        dog.x = clamp(dog.x, 40, WORLD_W - 40);
-        dog.y = clamp(dog.y, 80, WORLD_H - 40);
-
-        if (vx < -0.01) dogFacing = -1;
-        if (vx > 0.01) dogFacing = 1;
-
-        dog.action = "walk";
-        dogFrameTick++;
-        if (dogFrameTick % 6 === 0) dogFrame = (dogFrame + 1) % DOG_FRAMES;
-      }
-    } else {
-      // Optional manual movement with D-pad
-      let vx = touchDir.x, vy = touchDir.y;
-
-      const locked = (dog.action === "sleep" || dog.action === "eat" || dog.action === "sit" || dog.action === "paw");
-      if (locked) { vx = 0; vy = 0; }
-
-      const isWalking = (vx !== 0 || vy !== 0);
-      if (isWalking) {
-        dog.x += vx * dog.speed;
-        dog.y += vy * dog.speed;
-        dog.x = clamp(dog.x, 40, WORLD_W - 40);
-        dog.y = clamp(dog.y, 80, WORLD_H - 40);
-        if (vx < 0) dogFacing = -1;
-        if (vx > 0) dogFacing = 1;
-        dog.action = "walk";
-        dogFrameTick++;
-        if (dogFrameTick % 6 === 0) dogFrame = (dogFrame + 1) % DOG_FRAMES;
-      } else {
-        if (dog.action === "walk") dog.action = "sit";
-        dogFrame = 0;
-      }
-    }
-
-    // Camera follows dog (fly effect)
-    centerCameraOn(dog.x, dog.y);
-    updateCamera();
-
-    dogMoodEl.textContent = `Mood: ${dog.mood}`;
-  }
-
-  function draw() {
-    if (sceneScreen.style.display !== "block" || !currentPark) return;
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    drawWorldBackground();
-    drawHotspots();
-    drawDog();
-  }
-
-  function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
-  }
-
-  // -------------------------
-  // Init
-  // -------------------------
-  function renderInitial() {
-    renderStatus();
-    renderBadges();
-    renderParks();
-  }
-
-  renderInitial();
-  loop();
-</script>
-</body>
-</html>
+      { id:"tunnel", label:"Tunnel View", x:320, y:260,
+        cool:"One of the most famous views in the U.S.—you can spot huge cliffs and waterfalls from here." },
+      { id:"elcap", label:"El Capitan", x:620, y:340,
+        cool:"A giant granite wall. Some climbers take days to reach the top!" },
+      { id:"halfdome", label:"Half Dome", x:980, y:260,
+        cool:"A famous dome-shaped granite mountain carved by glaciers long ago." },
+      { id:"falls", label:"Yosemite Falls", x:1320, y:300,
+        cool:"A waterfall is a river dropping suddenly—gravity makes the water rush down." },
+      { id:"meadow", label:"Flower Meadow", x:820, y
