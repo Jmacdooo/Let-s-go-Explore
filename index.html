@@ -624,31 +624,51 @@ function drawAnimals(){
     ctx.fillText("tap me", sx - 18, sy + 36);
   }
 }
-
 function drawDog(){
   const sx = dog.x - camera.x;
   const sy = dog.y - camera.y;
 
-  // Try sprite
   const key = SPR.keys[dog.state] || SPR.keys.idle;
-  if (img) {
-if (img) {
-  const drawW = 220;
-  const drawH = 180;
+  const img = images[key]; // <-- important
 
-  ctx.save();
-  if (dog.dir === -1) {
-    ctx.translate(sx + drawW, sy);
-    ctx.scale(-1, 1);
-    ctx.drawImage(img, 0, 0, drawW, drawH);
-  } else {
-    ctx.drawImage(img, sx, sy, drawW, drawH);
+  // If an image exists, draw it as a normal PNG (no spritesheet needed)
+  if (img) {
+    const drawW = 160;   // make bigger/smaller here
+    const drawH = 140;
+
+    ctx.save();
+    if (dog.dir === -1) {
+      ctx.translate(sx + drawW, sy);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, 0, 0, drawW, drawH);
+    } else {
+      ctx.drawImage(img, sx, sy, drawW, drawH);
+    }
+    ctx.restore();
+    return;
   }
-  ctx.restore();
-} else {
+
+  // Fallback dog (if image missing)
   ctx.fillStyle = "#a97142";
   ctx.fillRect(sx, sy, dog.w, dog.h);
+
+  ctx.fillStyle = "#000";
+  ctx.fillRect(sx + (dog.dir===1 ? dog.w-24 : 14), sy + 14, 7, 7);
+
+  ctx.fillStyle = "#7c4f2c";
+  ctx.fillRect(sx + (dog.dir===1 ? dog.w-10 : 0), sy + 8, 10, 18);
+
+  ctx.fillStyle = "#7c4f2c";
+  const wag = Math.sin(dog.animTime*0.25)*4;
+  ctx.fillRect(sx + (dog.dir===1 ? -8 : dog.w-2), sy + 26 + wag, 10, 8);
+
+  ctx.font = "22px system-ui";
+  if(dog.state==="happy") ctx.fillText("😊", sx + 26, sy - 10);
+  else if(dog.state==="walk") ctx.fillText("🐾", sx + 26, sy - 10);
+  else if(dog.state==="eat") ctx.fillText("😋", sx + 26, sy - 10);
 }
+
+
 
 
   ctx.save();
