@@ -3,34 +3,26 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Let’s Go Explore — My Forever Dog</title>
+<title>My Forever Dog — Walk + States + Parks</title>
 <style>
-  :root{
-    --panel: rgba(255,255,255,.92);
-    --shadow: 0 10px 30px rgba(0,0,0,.15);
-    --ink: rgba(0,0,0,.78);
-  }
   html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;background:#cfe9ff;}
   canvas{display:block;width:100vw;height:100vh;}
   #ui{
     position:fixed; left:12px; top:12px; z-index:10;
-    background:var(--panel); box-shadow:var(--shadow);
+    background:rgba(255,255,255,.92); box-shadow:0 10px 30px rgba(0,0,0,.15);
     border-radius:14px; padding:10px 12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;
-    font-size:12px; color:var(--ink);
+    font-size:12px;
   }
   #ui b{font-size:13px}
   #ui .pill{background:#fff;border:1px solid rgba(0,0,0,.12);border-radius:999px;padding:6px 10px}
-  #ui button{
-    border:none;border-radius:10px;padding:8px 10px;background:#111;color:#fff;font-weight:700;cursor:pointer
-  }
-  #ui button.secondary{background:#fff;color:#111;border:1px solid rgba(0,0,0,.15)}
-  #toast{
+  button{border:none;border-radius:10px;padding:8px 10px;background:#111;color:#fff;font-weight:700;cursor:pointer}
+  button.secondary{background:#fff;color:#111;border:1px solid rgba(0,0,0,.15)}
+  #hint{
     position:fixed; left:12px; bottom:12px; z-index:10;
-    background:var(--panel); box-shadow:var(--shadow);
-    border-radius:14px; padding:10px 12px; font-size:12px; color:var(--ink);
+    background:rgba(255,255,255,.92); box-shadow:0 10px 30px rgba(0,0,0,.15);
+    border-radius:14px; padding:10px 12px; font-size:12px;
     max-width:520px;
   }
-  #toast b{font-weight:800}
 </style>
 </head>
 <body>
@@ -38,43 +30,22 @@
 <div id="ui">
   <b>🐾 My Forever Dog</b>
   <span class="pill">Move: Arrows / WASD</span>
-  <span class="pill">Shift = Run</span>
-  <span class="pill">Click/Tap dog = Pet (Paw)</span>
+  <span class="pill">Shift = run</span>
+  <span class="pill">Pet: click/tap dog</span>
+  <span class="pill">Interact: E / tap sign</span>
+  <span class="pill">State: <b id="stateLabel">…</b></span>
+  <span class="pill">Loaded: <b id="loadedLabel">…</b></span>
   <button id="reset" class="secondary">Reset</button>
-  <span class="pill">State: <b id="stateLbl">idle</b></span>
-  <span class="pill">Loaded: <b id="loadedLbl">loading…</b></span>
 </div>
 
-<div id="toast">
-  💡 Walk up to a park sign and press <b>E</b> (or tap the sign). Pet the dog by clicking/tapping him.
-</div>
+<div id="hint">Loading…</div>
 
 <canvas id="game"></canvas>
 
 <script>
-/* =========================================================
-   FILE PATHS (YOUR REPO)
-   index.html is in ROOT, images are in /assets/
-========================================================= */
-const ASSET = (p)=>`assets/${p}`;
-
-// Dog assets you already have:
-const DOG_ASSETS = {
-  walk:  ASSET("dog_walk.png"),
-  idle:  ASSET("dog_idle.png"),
-  sleep: ASSET("dog_sleep.png"),
-  paw:   ASSET("dog_paw.png"),
-  eat:   ASSET("dog_eat.png"),
-};
-
-// Optional park background if you want it (exists in your screenshot list)
-const BG_ASSETS = {
-  yose: ASSET("bg_yose.png"), // if present
-};
-
-/* =========================================================
-   CANVAS + RESIZE
-========================================================= */
+/* =========================
+   CANVAS
+========================= */
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d", { alpha:true });
 
@@ -87,58 +58,67 @@ function resize(){
 addEventListener("resize", resize);
 resize();
 
-/* =========================================================
-   WORLD + CAMERA
-========================================================= */
+/* =========================
+   WORLD / GROUND
+========================= */
 const WORLD_W = 2600;
 const WORLD_H = 1400;
 
-const GROUND_Y = 980;         // main ground line (visual band)
-const DOG_FOOT_OFFSET = 10;   // lifts dog slightly so paws sit on band
+const GROUND_Y = 980;
+const DOG_FOOT_OFFSET = 8;
 
 const camera = { x:0, y:0 };
 const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
 
-/* =========================================================
-   INPUT (KEYS + POINTER)
-========================================================= */
+/* =========================
+   INPUT
+========================= */
 const keys = new Set();
 addEventListener("keydown",(e)=>{
-  keys.add(e.key.toLowerCase());
-  // prevent page scrolling on arrows/space
-  if(["arrowup","arrowdown","arrowleft","arrowright"," "].includes(e.key.toLowerCase())) e.preventDefault();
+  const k = e.key.toLowerCase();
+  keys.add(k);
+  if(["arrowup","arrowdown","arrowleft","arrowright"," "].includes(k)) e.preventDefault();
 },{passive:false});
 addEventListener("keyup",(e)=>keys.delete(e.key.toLowerCase()));
 
-let pointer = { x:0, y:0, down:false, clicked:false };
+let tap = { x:0, y:0, fired:false };
 canvas.addEventListener("pointerdown",(e)=>{
-  pointer.down = true;
-  pointer.clicked = true;
   const r = canvas.getBoundingClientRect();
-  pointer.x = (e.clientX - r.left);
-  pointer.y = (e.clientY - r.top);
-  canvas.setPointerCapture(e.pointerId);
+  tap.x = e.clientX - r.left;
+  tap.y = e.clientY - r.top;
+  tap.fired = true;
 });
-canvas.addEventListener("pointermove",(e)=>{
-  const r = canvas.getBoundingClientRect();
-  pointer.x = (e.clientX - r.left);
-  pointer.y = (e.clientY - r.top);
-});
-canvas.addEventListener("pointerup",()=> pointer.down=false);
 
-/* =========================================================
+/* =========================
+   HELPERS (screen/world)
+========================= */
+function screenToWorld(sx, sy){ return { x: sx + camera.x, y: sy + camera.y }; }
+function roundRect(ctx,x,y,w,h,r,fill,stroke){
+  const rr = Math.min(r,w/2,h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+rr,y);
+  ctx.arcTo(x+w,y,x+w,y+h,rr);
+  ctx.arcTo(x+w,y+h,x,y+h,rr);
+  ctx.arcTo(x,y+h,x,y,rr);
+  ctx.arcTo(x,y,x+w,y,rr);
+  ctx.closePath();
+  if(fill) ctx.fill();
+  if(stroke) ctx.stroke();
+}
+function inRect(px,py,r){ return px>=r.x && px<=r.x+r.w && py>=r.y && py<=r.y+r.h; }
+
+/* =========================
    IMAGE LOADING + CROPPING
-========================================================= */
+========================= */
 function loadImage(src){
   return new Promise((resolve,reject)=>{
     const im = new Image();
     im.onload = ()=>resolve(im);
-    im.onerror = ()=>reject(new Error("Failed to load: "+src));
-    im.src = src + (src.includes("?") ? "" : `?v=${Date.now()}`); // cache-bust
+    im.onerror = ()=>reject(new Error("Failed to load "+src));
+    im.src = src + "?v=" + Date.now();
   });
 }
 
-// Some of your PNGs have huge empty space. Crop to visible pixels.
 function cropTransparentMargins(img){
   const w = img.naturalWidth || img.width;
   const h = img.naturalHeight || img.height;
@@ -150,27 +130,22 @@ function cropTransparentMargins(img){
   octx.drawImage(img,0,0);
 
   const data = octx.getImageData(0,0,w,h).data;
+  let minX=w, minY=h, maxX=0, maxY=0, found=false;
 
-  let minX=w, minY=h, maxX=0, maxY=0;
-  let found = false;
-
-  // find alpha bounds
   for(let y=0;y<h;y++){
     for(let x=0;x<w;x++){
       const a = data[(y*w + x)*4 + 3];
       if(a > 5){
-        found = true;
-        if(x < minX) minX = x;
-        if(y < minY) minY = y;
-        if(x > maxX) maxX = x;
-        if(y > maxY) maxY = y;
+        found=true;
+        if(x<minX)minX=x;
+        if(y<minY)minY=y;
+        if(x>maxX)maxX=x;
+        if(y>maxY)maxY=y;
       }
     }
   }
-
   if(!found) return off;
 
-  // padding
   const pad = 6;
   minX = Math.max(0, minX - pad);
   minY = Math.max(0, minY - pad);
@@ -181,245 +156,145 @@ function cropTransparentMargins(img){
   const ch = maxY - minY + 1;
 
   const cropped = document.createElement("canvas");
-  cropped.width = cw;
-  cropped.height = ch;
+  cropped.width = cw; cropped.height = ch;
   cropped.getContext("2d").drawImage(off, minX, minY, cw, ch, 0, 0, cw, ch);
   return cropped;
 }
 
-/* =========================================================
-   SPRITE TYPES
-   - walk: sprite sheet in one row (frames)
-   - idle/sleep/paw/eat: single images (or sheets; we support both)
-========================================================= */
-function makeSpriteFromImage(img, {frames=1}={}){
-  const cropped = cropTransparentMargins(img);
-  const frameW = Math.floor(cropped.width / frames);
-  const frameH = cropped.height;
-  return { sheet: cropped, frames, frameW, frameH };
+function makeSprite(img, frames=1){
+  const sheet = cropTransparentMargins(img);
+  const frameW = Math.floor(sheet.width / frames);
+  const frameH = sheet.height;
+  return { sheet, frames, frameW, frameH };
 }
 
-const Sprites = {
-  walk: null,
-  idle: null,
-  sleep: null,
-  paw: null,
-  eat: null,
+/* =========================
+   ASSETS (YOUR REAL PATHS)
+========================= */
+const ASSETS = {
+  walk:  { src:"assets/dog_walk.png",  frames:6 },
+  idle:  { src:"assets/dog_idle.png",  frames:1 },
+  sleep: { src:"assets/dog_sleep.png", frames:1 },
+  paw:   { src:"assets/dog_paw.png",   frames:1 },
 };
 
-const UI = {
-  stateLbl: document.getElementById("stateLbl"),
-  loadedLbl: document.getElementById("loadedLbl"),
-};
+const SPR = { walk:null, idle:null, sleep:null, paw:null };
 
-async function loadAll(){
-  try{
-    UI.loadedLbl.textContent = "loading images…";
+const stateLabel = document.getElementById("stateLabel");
+const loadedLabel = document.getElementById("loadedLabel");
+const hint = document.getElementById("hint");
 
-    // You can adjust frame counts here if your images are strips too.
-    Sprites.walk  = makeSpriteFromImage(await loadImage(DOG_ASSETS.walk),  {frames:6});
-    Sprites.idle  = makeSpriteFromImage(await loadImage(DOG_ASSETS.idle),  {frames:1});
-    Sprites.sleep = makeSpriteFromImage(await loadImage(DOG_ASSETS.sleep), {frames:1});
-    Sprites.paw   = makeSpriteFromImage(await loadImage(DOG_ASSETS.paw),   {frames:1});
-    Sprites.eat   = makeSpriteFromImage(await loadImage(DOG_ASSETS.eat),   {frames:1});
-
-    // Optional background
-    try{
-      BG.yose = await loadImage(BG_ASSETS.yose);
-    }catch(e){
-      BG.yose = null; // ok if missing
-    }
-
-    UI.loadedLbl.textContent = "assets loaded ✅";
-  }catch(err){
-    console.error(err);
-    UI.loadedLbl.textContent = "LOAD FAILED (check /assets paths)";
-  }
-}
-
-/* =========================================================
+/* =========================
    DOG STATE MACHINE
-========================================================= */
-const DogState = {
-  IDLE: "idle",
-  WALK: "walk",
-  SLEEP: "sleep",
-  PAW: "paw",
-  EAT: "eat",
-};
-
-const dog = {
-  x: WORLD_W/2,
-  y: GROUND_Y,
-  vx: 0, vy: 0,
-  facing: 1, // 1 right, -1 left
-
-  state: DogState.IDLE,
-  stateTimer: 0,
-
-  // animation
+========================= */
+const DOG = {
+  x: WORLD_W/2, y: GROUND_Y,
+  vx:0, vy:0,
+  facing: 1,
+  state: "idle",   // idle | walk | sleep | paw
+  stateT: 0,
   frame: 0,
   animT: 0,
-
-  // movement
+  idleStillT: 0,
   speed: 320,
   runMult: 1.75,
-
-  // sizing
-  targetH: 170, // bigger dog by default
+  targetH: 170
 };
 
-// helper: set state with duration (optional)
-function setDogState(state, durationSec=0){
-  dog.state = state;
-  dog.stateTimer = durationSec;
-
-  // reset animation each switch
-  dog.frame = 0;
-  dog.animT = 0;
-
-  UI.stateLbl.textContent = state;
+function setState(s, duration=0){
+  DOG.state = s;
+  DOG.stateT = duration;
+  DOG.frame = 0;
+  DOG.animT = 0;
+  stateLabel.textContent = s;
 }
 
-/* =========================================================
-   PARK INTERACTIONS
-========================================================= */
+function currentSprite(){
+  if(DOG.state === "walk") return SPR.walk || SPR.idle;
+  if(DOG.state === "sleep") return SPR.sleep || SPR.idle;
+  if(DOG.state === "paw") return SPR.paw || SPR.idle;
+  return SPR.idle || SPR.walk;
+}
+
+/* =========================
+   PARKS (SIGNS)
+========================= */
 const parks = [
-  { id:"yose", name:"Yosemite", subtitle:"Half Dome", x:520,  y:GROUND_Y-20, w:220, h:90, visited:false },
-  { id:"gc",   name:"Grand Canyon", subtitle:"South Rim View", x:1400, y:GROUND_Y-20, w:260, h:90, visited:false },
-  { id:"zion", name:"Zion", subtitle:"Angels Landing", x:2050, y:GROUND_Y-20, w:220, h:90, visited:false },
+  { id:"yose", name:"Yosemite", subtitle:"Half Dome", x:520,  y:GROUND_Y-30, w:220, h:90, visited:false },
+  { id:"gc",   name:"Grand Canyon", subtitle:"South Rim View", x:1400, y:GROUND_Y-30, w:260, h:90, visited:false },
+  { id:"zion", name:"Zion", subtitle:"Angels Landing", x:2050, y:GROUND_Y-30, w:220, h:90, visited:false },
 ];
 
-let activePark = null; // park near dog
-
-function isNearPark(){
-  activePark = null;
+function nearestPark(){
+  let best=null, bestD=1e9;
   for(const p of parks){
-    const dx = (dog.x - (p.x + p.w/2));
-    const dy = (dog.y - (p.y + p.h/2));
-    const dist = Math.hypot(dx,dy);
-    if(dist < 150){
-      activePark = p;
-      return true;
-    }
+    const cx = p.x + p.w/2, cy = p.y;
+    const d = Math.hypot(DOG.x - cx, DOG.y - cy);
+    if(d < bestD){ bestD=d; best=p; }
   }
-  return false;
+  return (bestD < 160) ? best : null;
 }
 
-function enterPark(p){
+function visitPark(p){
   p.visited = true;
-
-  // Cute behavior: dog “eats snack” when arriving
-  setDogState(DogState.EAT, 1.2);
-
-  // You can swap backgrounds per park here later.
-  toast(`📍 Arrived at <b>${p.name}</b> — ${p.subtitle}!`);
+  hint.innerHTML = `📍 Visited <b>${p.name}</b> — ${p.subtitle}!`;
+  // cute behavior: paw for a moment
+  setState("paw", 1.0);
 }
 
-/* =========================================================
-   TOAST
-========================================================= */
-let toastTimer = 0;
-function toast(html){
-  const el = document.getElementById("toast");
-  el.innerHTML = html;
-  toastTimer = 3.5;
-}
-
-/* =========================================================
-   HIT TESTS
-========================================================= */
-function worldToScreen(wx, wy){
-  return { x: wx - camera.x, y: wy - camera.y };
-}
-function screenToWorld(sx, sy){
-  return { x: sx + camera.x, y: sy + camera.y };
-}
-
-function dogScreenBounds(){
-  // compute current drawn size from sprite
-  const spr = getCurrentSprite();
-  if(!spr) return {x:dog.x, y:dog.y, w:1, h:1};
-
-  const scale = dog.targetH / spr.frameH;
+/* =========================
+   HITBOX for dog (tap-to-pet)
+========================= */
+function dogBounds(){
+  const spr = currentSprite();
+  if(!spr) return {x:DOG.x,y:DOG.y,w:1,h:1};
+  const scale = DOG.targetH / spr.frameH;
   const w = spr.frameW * scale;
   const h = spr.frameH * scale;
-
-  const x = dog.x - w/2;
-  const y = (dog.y - h) + DOG_FOOT_OFFSET;
-
+  const x = DOG.x - w/2;
+  const y = (DOG.y - h) + DOG_FOOT_OFFSET;
   return {x,y,w,h};
 }
 
-function pointInRect(px,py, r){
-  return px>=r.x && px<=r.x+r.w && py>=r.y && py<=r.y+r.h;
-}
-
-/* =========================================================
-   GAME LOOP: UPDATE
-========================================================= */
+/* =========================
+   UPDATE
+========================= */
 let last = performance.now();
 
 function update(dt){
-  // Toast fade
-  if(toastTimer > 0){
-    toastTimer -= dt;
-    if(toastTimer <= 0){
-      document.getElementById("toast").innerHTML =
-        '💡 Walk up to a park sign and press <b>E</b> (or tap the sign). Pet the dog by clicking/tapping him.';
-    }
+  // Resolve timed states
+  if(DOG.stateT > 0){
+    DOG.stateT -= dt;
+    if(DOG.stateT <= 0) setState("idle");
   }
 
-  // Click/tap interactions (one-shot per click)
-  if(pointer.clicked){
-    pointer.clicked = false;
+  // Tap handling
+  if(tap.fired){
+    tap.fired = false;
+    const wpt = screenToWorld(tap.x, tap.y);
 
-    const wpt = screenToWorld(pointer.x, pointer.y);
-
-    // 1) Tap dog = pet (paw)
-    const db = dogScreenBounds();
-    if(pointInRect(wpt.x, wpt.y, db)){
-      setDogState(DogState.PAW, 1.0);
-      toast("🐾 Aww! He gave you a paw.");
+    // tap dog => paw
+    if(inRect(wpt.x, wpt.y, dogBounds())){
+      setState("paw", 1.0);
+      hint.innerHTML = "🐾 Aww! He gave you a paw.";
     } else {
-      // 2) Tap a sign = enter park
+      // tap sign => visit
       for(const p of parks){
-        const signRect = { x:p.x, y:p.y-100, w:p.w, h:p.h+140 };
-        if(pointInRect(wpt.x, wpt.y, signRect)){
-          enterPark(p);
-          break;
-        }
+        const r = { x:p.x, y:p.y-100, w:p.w, h:p.h+140 };
+        if(inRect(wpt.x, wpt.y, r)){ visitPark(p); break; }
       }
     }
   }
 
-  // Keyboard interaction: E to enter park if near
+  // E interaction
   if(keys.has("e")){
-    // simple “debounce”: remove key so it’s one press
     keys.delete("e");
-    if(isNearPark() && activePark){
-      enterPark(activePark);
-    } else {
-      toast("Walk closer to a park sign to enter.");
-    }
+    const p = nearestPark();
+    if(p) visitPark(p);
+    else hint.innerHTML = "Walk closer to a sign, then press <b>E</b>.";
   }
 
-  // State timer countdown
-  if(dog.stateTimer > 0){
-    dog.stateTimer -= dt;
-    if(dog.stateTimer <= 0){
-      // after a timed action, return to idle
-      setDogState(DogState.IDLE);
-    }
-  }
-
-  // Movement disabled in certain states (paw/eat/sleep)
-  const movementLocked = (dog.state === DogState.PAW || dog.state === DogState.EAT || dog.state === DogState.SLEEP);
-
-  // Auto-sleep if idle for a while
-  if(dog.state === DogState.IDLE){
-    dog.stateTimer = Math.max(dog.stateTimer, 0);
-  }
+  const locked = (DOG.state === "paw" || DOG.state === "sleep");
 
   const left  = keys.has("arrowleft")  || keys.has("a");
   const right = keys.has("arrowright") || keys.has("d");
@@ -427,8 +302,8 @@ function update(dt){
   const down  = keys.has("arrowdown")  || keys.has("s");
   const run   = keys.has("shift");
 
-  let ax = 0, ay = 0;
-  if(!movementLocked){
+  let ax=0, ay=0;
+  if(!locked){
     if(left) ax -= 1;
     if(right) ax += 1;
     if(up) ay -= 1;
@@ -436,262 +311,173 @@ function update(dt){
   }
 
   const mag = Math.hypot(ax,ay) || 1;
-  ax /= mag; ay /= mag;
+  ax/=mag; ay/=mag;
 
-  const spd = dog.speed * (run ? dog.runMult : 1);
-  dog.vx = ax * spd;
-  dog.vy = ay * spd;
+  const spd = DOG.speed * (run ? DOG.runMult : 1);
+  DOG.vx = ax * spd;
+  DOG.vy = ay * spd;
 
-  dog.x += dog.vx * dt;
-  dog.y += dog.vy * dt;
+  DOG.x += DOG.vx * dt;
+  DOG.y += DOG.vy * dt;
 
-  // Keep dog inside world + on ground band
-  dog.x = clamp(dog.x, 70, WORLD_W-70);
-  dog.y = clamp(dog.y, GROUND_Y-140, GROUND_Y+140);
+  DOG.x = clamp(DOG.x, 60, WORLD_W-60);
+  DOG.y = clamp(DOG.y, GROUND_Y-120, GROUND_Y+120);
 
-  if(dog.vx > 6) dog.facing = 1;
-  if(dog.vx < -6) dog.facing = -1;
+  if(DOG.vx > 6) DOG.facing = 1;
+  if(DOG.vx < -6) DOG.facing = -1;
 
-  const moving = (Math.abs(dog.vx) + Math.abs(dog.vy)) > 2;
+  const moving = (Math.abs(DOG.vx) + Math.abs(DOG.vy)) > 2;
+
+  // Sleep if idle too long
+  if(!locked && !moving && DOG.state === "idle"){
+    DOG.idleStillT += dt;
+    if(DOG.idleStillT > 6){
+      setState("sleep");
+      hint.innerHTML = "😴 He got sleepy and took a nap. Move to wake him.";
+    }
+  } else {
+    DOG.idleStillT = 0;
+  }
+
+  // Wake on movement keys
+  if(DOG.state === "sleep" && (left||right||up||down)){
+    setState("idle");
+    hint.innerHTML = "🐶 He woke up!";
+  }
 
   // State transitions
-  if(!movementLocked){
+  if(!locked){
     if(moving){
-      if(dog.state !== DogState.WALK) setDogState(DogState.WALK);
+      if(DOG.state !== "walk") setState("walk");
     } else {
-      if(dog.state === DogState.WALK) setDogState(DogState.IDLE);
+      if(DOG.state === "walk") setState("idle");
     }
   }
 
-  // Sleep trigger: hold still for a while
-  // (simple: if idle and no keys for 6 seconds, sleep)
-  if(dog.state === DogState.IDLE){
-    dog._idleHold = (dog._idleHold || 0) + dt;
-    if(dog._idleHold > 6){
-      setDogState(DogState.SLEEP);
-      toast("😴 He got sleepy and took a nap.");
+  // Animate walk sheet
+  const spr = currentSprite();
+  if(spr && spr.frames > 1 && DOG.state === "walk" && moving){
+    DOG.animT += dt;
+    const fps = run ? 16 : 12;
+    if(DOG.animT >= 1/fps){
+      DOG.animT = 0;
+      DOG.frame = (DOG.frame + 1) % spr.frames;
     }
   } else {
-    dog._idleHold = 0;
+    DOG.frame = 0;
   }
 
-  // Wake up if you move
-  if(dog.state === DogState.SLEEP && (left||right||up||down)){
-    setDogState(DogState.IDLE);
-    toast("🐶 He woke up!");
-  }
+  // camera follows
+  camera.x = clamp(DOG.x - innerWidth/2, 0, WORLD_W - innerWidth);
+  camera.y = clamp(DOG.y - innerHeight/2, 0, WORLD_H - innerHeight);
 
-  // Animation for the current sprite
-  const spr = getCurrentSprite();
-  if(spr){
-    const isSheet = spr.frames > 1;
-    const animate = (dog.state === DogState.WALK && moving && isSheet);
-
-    if(animate){
-      dog.animT += dt;
-      const fps = run ? 16 : 12;
-      if(dog.animT >= 1/fps){
-        dog.animT = 0;
-        dog.frame = (dog.frame + 1) % spr.frames;
-      }
-    } else {
-      dog.frame = 0;
-    }
-  }
-
-  // Camera follow
-  camera.x = clamp(dog.x - innerWidth/2, 0, WORLD_W - innerWidth);
-  camera.y = clamp(dog.y - innerHeight/2, 0, WORLD_H - innerHeight);
-
-  // proximity hint
-  if(isNearPark() && activePark){
-    if(!activePark.visited){
-      // gentle reminder
-      if((dog._parkHintT = (dog._parkHintT||0) + dt) > 2.5){
-        dog._parkHintT = 0;
-        toast(`Press <b>E</b> to visit <b>${activePark.name}</b> (or tap the sign).`);
-      }
-    }
-  } else {
-    dog._parkHintT = 0;
+  const near = nearestPark();
+  if(near && !near.visited){
+    hint.innerHTML = `Press <b>E</b> to visit <b>${near.name}</b> — or tap the sign.`;
   }
 }
 
-/* =========================================================
+/* =========================
    DRAW
-========================================================= */
-const BG = { yose: null };
-
+========================= */
 function draw(){
   ctx.clearRect(0,0,innerWidth,innerHeight);
 
-  // Background (optional image, otherwise simple sky)
-  if(BG.yose){
-    // cover screen with background
-    ctx.drawImage(BG.yose, 0, 0, innerWidth, innerHeight);
-  } else {
-    ctx.fillStyle = "#bfe3ff";
-    ctx.fillRect(0,0,innerWidth,innerHeight);
-
-    // soft hills
-    ctx.save();
-    ctx.translate(0,0);
-    ctx.fillStyle = "rgba(0,0,0,.06)";
-    for(let i=0;i<6;i++){
-      ctx.beginPath();
-      ctx.ellipse(200 + i*520, 250, 520, 160, 0, 0, Math.PI*2);
-      ctx.fill();
-    }
-    ctx.restore();
-  }
+  ctx.fillStyle = "#bfe3ff";
+  ctx.fillRect(0,0,innerWidth,innerHeight);
 
   ctx.save();
   ctx.translate(-camera.x, -camera.y);
 
-  // Ground band
+  // soft hills
+  ctx.fillStyle = "rgba(0,0,0,.06)";
+  for(let i=0;i<6;i++){
+    ctx.beginPath();
+    ctx.ellipse(250 + i*520, 260, 520, 160, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // ground
   ctx.fillStyle = "rgba(0,0,0,.10)";
   ctx.fillRect(0, GROUND_Y+40, WORLD_W, WORLD_H-(GROUND_Y+40));
-
   ctx.fillStyle = "rgba(255,255,255,.22)";
   ctx.fillRect(0, GROUND_Y+10, WORLD_W, 24);
 
-  // Signs (parks)
-  drawParks();
-
-  // Dog (behind signs? We draw dog first, then signs if you want overlap)
+  drawParks(false);
   drawDog();
-
-  // Foreground signs on top (so dog can be "below signs")
   drawParks(true);
 
   ctx.restore();
+
+  // debug
+  ctx.fillStyle = "rgba(0,0,0,.55)";
+  ctx.font = "12px system-ui";
+  ctx.fillText(`frame ${DOG.frame+1}`, 14, innerHeight-14);
 }
 
-function drawParks(foreground=false){
+function drawParks(foreground){
   for(const p of parks){
-    // sign area
-    const sx = p.x, sy = p.y-95;
-    const w = p.w, h = p.h;
+    const sx = p.x, sy = p.y-95, w=p.w, h=p.h;
 
-    // If foreground pass, draw only the board "top layer"
-    // If not, draw posts and shadow.
     if(!foreground){
-      // post
       ctx.fillStyle = "rgba(0,0,0,.20)";
       ctx.fillRect(sx + w/2 - 8, sy + h, 16, 70);
-
-      // shadow base
       ctx.fillStyle = "rgba(0,0,0,.08)";
       ctx.fillRect(sx + w/2 - 28, sy + h + 62, 56, 10);
     }
 
-    // board
     ctx.fillStyle = "rgba(255,255,255,.92)";
     roundRect(ctx, sx, sy, w, h, 14, true, false);
 
-    ctx.strokeStyle = p.visited ? "rgba(0,140,60,.55)" : "rgba(0,0,0,.16)";
+    ctx.strokeStyle = p.visited ? "rgba(0,160,80,.55)" : "rgba(0,0,0,.16)";
     ctx.lineWidth = 2;
     roundRect(ctx, sx, sy, w, h, 14, false, true);
 
-    // text
     ctx.fillStyle = "rgba(0,0,0,.78)";
     ctx.font = "700 16px system-ui";
     ctx.fillText(p.name, sx+12, sy+28);
     ctx.font = "12px system-ui";
     ctx.fillText(p.subtitle, sx+12, sy+50);
 
-    // check
     ctx.fillStyle = p.visited ? "rgba(0,180,80,.95)" : "rgba(0,0,0,.18)";
     ctx.fillRect(sx + w - 28, sy + 14, 14, 14);
-
-    // hint bubble near sign if close
-    if(activePark && activePark.id === p.id && !p.visited && !foreground){
-      ctx.fillStyle = "rgba(255,255,255,.85)";
-      roundRect(ctx, sx + w + 12, sy + 10, 130, 44, 12, true, false);
-      ctx.fillStyle = "rgba(0,0,0,.75)";
-      ctx.font = "12px system-ui";
-      ctx.fillText("Press E", sx + w + 26, sy + 30);
-      ctx.fillText("or tap sign", sx + w + 26, sy + 46);
-    }
-  }
-}
-
-function getCurrentSprite(){
-  if(!Sprites.walk) return null;
-
-  switch(dog.state){
-    case DogState.WALK:  return Sprites.walk;
-    case DogState.SLEEP: return Sprites.sleep || Sprites.idle;
-    case DogState.PAW:   return Sprites.paw || Sprites.idle;
-    case DogState.EAT:   return Sprites.eat || Sprites.idle;
-    case DogState.IDLE:
-    default:             return Sprites.idle || Sprites.walk;
   }
 }
 
 function drawDog(){
-  const spr = getCurrentSprite();
-  const px = dog.x, py = dog.y;
+  const px = DOG.x, py = DOG.y;
+  const spr = currentSprite();
 
   if(!spr || !spr.sheet){
     ctx.fillStyle = "rgba(0,0,0,.35)";
-    ctx.beginPath(); ctx.arc(px,py,26,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(px, py, 26, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = "#fff";
-    ctx.font = "12px system-ui";
-    ctx.fillText("loading dog sprites…", px-70, py-40);
+    ctx.fillText("loading dog assets…", px-70, py-40);
     return;
   }
 
-  const scale = dog.targetH / spr.frameH;
+  const scale = DOG.targetH / spr.frameH;
   const drawW = spr.frameW * scale;
   const drawH = spr.frameH * scale;
 
   const dx = px - drawW/2;
   const dy = (py - drawH) + DOG_FOOT_OFFSET;
 
-  const sx = (spr.frames > 1 ? (dog.frame * spr.frameW) : 0);
-  const sy = 0;
+  const sx = (spr.frames > 1 ? DOG.frame * spr.frameW : 0);
 
   ctx.save();
-  if(dog.facing === -1){
+  if(DOG.facing === -1){
     ctx.translate(px, 0);
     ctx.scale(-1, 1);
     ctx.translate(-px, 0);
   }
-
-  ctx.imageSmoothingEnabled = true;
-
-  // draw ONE frame only (never slide the strip)
-  ctx.drawImage(spr.sheet, sx, sy, spr.frameW, spr.frameH, dx, dy, drawW, drawH);
-
+  ctx.drawImage(spr.sheet, sx, 0, spr.frameW, spr.frameH, dx, dy, drawW, drawH);
   ctx.restore();
-
-  // little "tap me" bubble when idle and not sleeping
-  if(dog.state === DogState.IDLE){
-    ctx.fillStyle = "rgba(255,255,255,.80)";
-    roundRect(ctx, px - 34, dy - 44, 68, 28, 999, true, false);
-    ctx.fillStyle = "rgba(0,0,0,.70)";
-    ctx.font = "11px system-ui";
-    ctx.fillText("tap me", px - 18, dy - 25);
-  }
 }
 
-function roundRect(ctx, x, y, w, h, r, fill, stroke){
-  const rr = Math.min(r, w/2, h/2);
-  ctx.beginPath();
-  ctx.moveTo(x+rr, y);
-  ctx.arcTo(x+w, y, x+w, y+h, rr);
-  ctx.arcTo(x+w, y+h, x, y+h, rr);
-  ctx.arcTo(x, y+h, x, y, rr);
-  ctx.arcTo(x, y, x+w, y, rr);
-  ctx.closePath();
-  if(fill) ctx.fill();
-  if(stroke) ctx.stroke();
-}
-
-/* =========================================================
+/* =========================
    LOOP
-========================================================= */
+========================= */
 function loop(now){
   const dt = Math.min(0.033, (now - last)/1000);
   last = now;
@@ -699,28 +485,43 @@ function loop(now){
   draw();
   requestAnimationFrame(loop);
 }
-requestAnimationFrame(loop);
 
-/* =========================================================
+/* =========================
    RESET
-========================================================= */
+========================= */
 document.getElementById("reset").addEventListener("click", ()=>{
-  dog.x = WORLD_W/2;
-  dog.y = GROUND_Y;
-  dog.vx = dog.vy = 0;
-  dog.facing = 1;
-  setDogState(DogState.IDLE);
+  DOG.x = WORLD_W/2;
+  DOG.y = GROUND_Y;
+  DOG.vx = DOG.vy = 0;
+  DOG.facing = 1;
   for(const p of parks) p.visited = false;
-  toast("Reset! Walk to a sign and press E (or tap it).");
+  setState("idle");
+  hint.innerHTML = "Reset! Walk to a sign and press <b>E</b> (or tap it).";
 });
 
-/* =========================================================
-   START
-========================================================= */
-loadAll().then(()=>{
-  setDogState(DogState.IDLE);
-  toast("✅ Loaded! Click/tap your dog to pet him. Walk to a sign and press E.");
-});
+/* =========================
+   LOAD EVERYTHING THEN START
+========================= */
+(async function start(){
+  try{
+    loadedLabel.textContent = "loading…";
+
+    // IMPORTANT: real paths for your repo
+    SPR.walk  = makeSprite(await loadImage(ASSETS.walk.src),  ASSETS.walk.frames);
+    SPR.idle  = makeSprite(await loadImage(ASSETS.idle.src),  ASSETS.idle.frames);
+    SPR.sleep = makeSprite(await loadImage(ASSETS.sleep.src), ASSETS.sleep.frames);
+    SPR.paw   = makeSprite(await loadImage(ASSETS.paw.src),   ASSETS.paw.frames);
+
+    loadedLabel.textContent = "assets/… ✅";
+    setState("idle");
+    hint.innerHTML = "✅ Loaded! Click/tap the dog to pet him. Walk to a sign and press <b>E</b>.";
+    requestAnimationFrame(loop);
+  }catch(e){
+    console.error(e);
+    loadedLabel.textContent = "FAILED";
+    hint.textContent = "❌ Images failed to load. Make sure these exist: assets/dog_walk.png, assets/dog_idle.png, assets/dog_sleep.png, assets/dog_paw.png";
+  }
+})();
 </script>
 </body>
 </html>
