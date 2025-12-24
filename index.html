@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>My Forever Dog — Walk + States + Parks</title>
+<title>My Forever Dog — Buttons + Walk + Pet + Parks</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;background:#cfe9ff;}
   canvas{display:block;width:100vw;height:100vh;}
+
   #ui{
     position:fixed; left:12px; top:12px; z-index:10;
     background:rgba(255,255,255,.92); box-shadow:0 10px 30px rgba(0,0,0,.15);
@@ -15,13 +16,27 @@
   }
   #ui b{font-size:13px}
   #ui .pill{background:#fff;border:1px solid rgba(0,0,0,.12);border-radius:999px;padding:6px 10px}
-  button{border:none;border-radius:10px;padding:8px 10px;background:#111;color:#fff;font-weight:700;cursor:pointer}
-  button.secondary{background:#fff;color:#111;border:1px solid rgba(0,0,0,.15)}
+  #ui button{
+    border:none;border-radius:10px;padding:8px 10px;background:#111;color:#fff;font-weight:800;cursor:pointer
+  }
+  #ui button.secondary{background:#fff;color:#111;border:1px solid rgba(0,0,0,.15)}
+  #ui button.tog{background:#fff;color:#111;border:1px solid rgba(0,0,0,.15);font-weight:800}
+  #ui button.tog.on{background:#111;color:#fff;border:1px solid rgba(0,0,0,.15)}
+
+  #panel{
+    position:fixed; right:12px; top:12px; z-index:10;
+    background:rgba(255,255,255,.92); box-shadow:0 10px 30px rgba(0,0,0,.15);
+    border-radius:14px; padding:10px 12px; font-size:12px; width:260px;
+  }
+  #panel h3{margin:0 0 8px 0;font-size:13px}
+  .parkRow{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(0,0,0,.06)}
+  .parkRow:last-child{border-bottom:none}
+  .box{width:12px;height:12px;border-radius:3px;border:1px solid rgba(0,0,0,.25);display:inline-block}
+  .box.on{background:rgba(0,180,80,.95);border-color:rgba(0,140,60,.6)}
   #hint{
     position:fixed; left:12px; bottom:12px; z-index:10;
     background:rgba(255,255,255,.92); box-shadow:0 10px 30px rgba(0,0,0,.15);
-    border-radius:14px; padding:10px 12px; font-size:12px;
-    max-width:520px;
+    border-radius:14px; padding:10px 12px; font-size:12px; max-width:520px;
   }
 </style>
 </head>
@@ -29,13 +44,25 @@
 
 <div id="ui">
   <b>🐾 My Forever Dog</b>
-  <span class="pill">Move: Arrows / WASD</span>
-  <span class="pill">Shift = run</span>
-  <span class="pill">Pet: click/tap dog</span>
-  <span class="pill">Interact: E / tap sign</span>
+  <span class="pill">Move: Arrows/WASD</span>
+  <span class="pill">Tap dog = Pet</span>
+  <span class="pill">E / tap sign = Visit</span>
+
+  <button id="btnIdle" class="secondary">Idle</button>
+  <button id="btnWalk" class="secondary">Walk</button>
+  <button id="btnPet"  class="secondary">Pet</button>
+  <button id="btnSleep"class="secondary">Sleep</button>
+
+  <button id="btnRun" class="tog">Run: OFF</button>
+  <button id="reset" class="secondary">Reset</button>
+
   <span class="pill">State: <b id="stateLabel">…</b></span>
   <span class="pill">Loaded: <b id="loadedLabel">…</b></span>
-  <button id="reset" class="secondary">Reset</button>
+</div>
+
+<div id="panel">
+  <h3>✅ Parks Visited</h3>
+  <div id="parkList"></div>
 </div>
 
 <div id="hint">Loading…</div>
@@ -63,7 +90,6 @@ resize();
 ========================= */
 const WORLD_W = 2600;
 const WORLD_H = 1400;
-
 const GROUND_Y = 980;
 const DOG_FOOT_OFFSET = 8;
 
@@ -90,7 +116,23 @@ canvas.addEventListener("pointerdown",(e)=>{
 });
 
 /* =========================
-   HELPERS (screen/world)
+   UI
+========================= */
+const stateLabel = document.getElementById("stateLabel");
+const loadedLabel = document.getElementById("loadedLabel");
+const hint = document.getElementById("hint");
+const btnRun = document.getElementById("btnRun");
+let runLockedOn = false;
+
+function setRunBtn(){
+  btnRun.textContent = runLockedOn ? "Run: ON" : "Run: OFF";
+  btnRun.classList.toggle("on", runLockedOn);
+}
+btnRun.addEventListener("click", ()=>{ runLockedOn=!runLockedOn; setRunBtn(); });
+setRunBtn();
+
+/* =========================
+   HELPERS
 ========================= */
 function screenToWorld(sx, sy){ return { x: sx + camera.x, y: sy + camera.y }; }
 function roundRect(ctx,x,y,w,h,r,fill,stroke){
@@ -118,15 +160,13 @@ function loadImage(src){
     im.src = src + "?v=" + Date.now();
   });
 }
-
 function cropTransparentMargins(img){
   const w = img.naturalWidth || img.width;
   const h = img.naturalHeight || img.height;
 
   const off = document.createElement("canvas");
-  off.width = w; off.height = h;
+  off.width=w; off.height=h;
   const octx = off.getContext("2d", { willReadFrequently:true });
-  octx.clearRect(0,0,w,h);
   octx.drawImage(img,0,0);
 
   const data = octx.getImageData(0,0,w,h).data;
@@ -135,37 +175,28 @@ function cropTransparentMargins(img){
   for(let y=0;y<h;y++){
     for(let x=0;x<w;x++){
       const a = data[(y*w + x)*4 + 3];
-      if(a > 5){
+      if(a>5){
         found=true;
-        if(x<minX)minX=x;
-        if(y<minY)minY=y;
-        if(x>maxX)maxX=x;
-        if(y>maxY)maxY=y;
+        if(x<minX)minX=x; if(y<minY)minY=y;
+        if(x>maxX)maxX=x; if(y>maxY)maxY=y;
       }
     }
   }
   if(!found) return off;
 
-  const pad = 6;
-  minX = Math.max(0, minX - pad);
-  minY = Math.max(0, minY - pad);
-  maxX = Math.min(w-1, maxX + pad);
-  maxY = Math.min(h-1, maxY + pad);
+  const pad=6;
+  minX=Math.max(0,minX-pad); minY=Math.max(0,minY-pad);
+  maxX=Math.min(w-1,maxX+pad); maxY=Math.min(h-1,maxY+pad);
 
-  const cw = maxX - minX + 1;
-  const ch = maxY - minY + 1;
-
-  const cropped = document.createElement("canvas");
-  cropped.width = cw; cropped.height = ch;
-  cropped.getContext("2d").drawImage(off, minX, minY, cw, ch, 0, 0, cw, ch);
+  const cw=maxX-minX+1, ch=maxY-minY+1;
+  const cropped=document.createElement("canvas");
+  cropped.width=cw; cropped.height=ch;
+  cropped.getContext("2d").drawImage(off,minX,minY,cw,ch,0,0,cw,ch);
   return cropped;
 }
-
 function makeSprite(img, frames=1){
   const sheet = cropTransparentMargins(img);
-  const frameW = Math.floor(sheet.width / frames);
-  const frameH = sheet.height;
-  return { sheet, frames, frameW, frameH };
+  return { sheet, frames, frameW: Math.floor(sheet.width/frames), frameH: sheet.height };
 }
 
 /* =========================
@@ -177,12 +208,7 @@ const ASSETS = {
   sleep: { src:"assets/dog_sleep.png", frames:1 },
   paw:   { src:"assets/dog_paw.png",   frames:1 },
 };
-
 const SPR = { walk:null, idle:null, sleep:null, paw:null };
-
-const stateLabel = document.getElementById("stateLabel");
-const loadedLabel = document.getElementById("loadedLabel");
-const hint = document.getElementById("hint");
 
 /* =========================
    DOG STATE MACHINE
@@ -217,13 +243,30 @@ function currentSprite(){
 }
 
 /* =========================
-   PARKS (SIGNS)
+   PARKS + CHECKLIST
 ========================= */
 const parks = [
   { id:"yose", name:"Yosemite", subtitle:"Half Dome", x:520,  y:GROUND_Y-30, w:220, h:90, visited:false },
   { id:"gc",   name:"Grand Canyon", subtitle:"South Rim View", x:1400, y:GROUND_Y-30, w:260, h:90, visited:false },
   { id:"zion", name:"Zion", subtitle:"Angels Landing", x:2050, y:GROUND_Y-30, w:220, h:90, visited:false },
 ];
+
+const parkList = document.getElementById("parkList");
+function renderParkList(){
+  parkList.innerHTML = "";
+  for(const p of parks){
+    const row = document.createElement("div");
+    row.className = "parkRow";
+    const box = document.createElement("span");
+    box.className = "box" + (p.visited ? " on":"");
+    const txt = document.createElement("div");
+    txt.innerHTML = `<b>${p.name}</b> — ${p.subtitle}`;
+    row.appendChild(box);
+    row.appendChild(txt);
+    parkList.appendChild(row);
+  }
+}
+renderParkList();
 
 function nearestPark(){
   let best=null, bestD=1e9;
@@ -234,11 +277,10 @@ function nearestPark(){
   }
   return (bestD < 160) ? best : null;
 }
-
 function visitPark(p){
   p.visited = true;
+  renderParkList();
   hint.innerHTML = `📍 Visited <b>${p.name}</b> — ${p.subtitle}!`;
-  // cute behavior: paw for a moment
   setState("paw", 1.0);
 }
 
@@ -262,23 +304,21 @@ function dogBounds(){
 let last = performance.now();
 
 function update(dt){
-  // Resolve timed states
+  // timed states
   if(DOG.stateT > 0){
     DOG.stateT -= dt;
     if(DOG.stateT <= 0) setState("idle");
   }
 
-  // Tap handling
+  // tap handling
   if(tap.fired){
     tap.fired = false;
     const wpt = screenToWorld(tap.x, tap.y);
 
-    // tap dog => paw
     if(inRect(wpt.x, wpt.y, dogBounds())){
       setState("paw", 1.0);
-      hint.innerHTML = "🐾 Aww! He gave you a paw.";
+      hint.innerHTML = "🐾 Pet! He gave you a paw.";
     } else {
-      // tap sign => visit
       for(const p of parks){
         const r = { x:p.x, y:p.y-100, w:p.w, h:p.h+140 };
         if(inRect(wpt.x, wpt.y, r)){ visitPark(p); break; }
@@ -300,7 +340,8 @@ function update(dt){
   const right = keys.has("arrowright") || keys.has("d");
   const up    = keys.has("arrowup")    || keys.has("w");
   const down  = keys.has("arrowdown")  || keys.has("s");
-  const run   = keys.has("shift");
+  const runKey = keys.has("shift");
+  const run = runLockedOn || runKey;
 
   let ax=0, ay=0;
   if(!locked){
@@ -328,24 +369,24 @@ function update(dt){
 
   const moving = (Math.abs(DOG.vx) + Math.abs(DOG.vy)) > 2;
 
-  // Sleep if idle too long
+  // sleep if idle too long
   if(!locked && !moving && DOG.state === "idle"){
     DOG.idleStillT += dt;
     if(DOG.idleStillT > 6){
       setState("sleep");
-      hint.innerHTML = "😴 He got sleepy and took a nap. Move to wake him.";
+      hint.innerHTML = "😴 He fell asleep. Move to wake him.";
     }
   } else {
     DOG.idleStillT = 0;
   }
 
-  // Wake on movement keys
+  // wake
   if(DOG.state === "sleep" && (left||right||up||down)){
     setState("idle");
     hint.innerHTML = "🐶 He woke up!";
   }
 
-  // State transitions
+  // state transitions
   if(!locked){
     if(moving){
       if(DOG.state !== "walk") setState("walk");
@@ -354,7 +395,7 @@ function update(dt){
     }
   }
 
-  // Animate walk sheet
+  // animate walk sheet
   const spr = currentSprite();
   if(spr && spr.frames > 1 && DOG.state === "walk" && moving){
     DOG.animT += dt;
@@ -389,7 +430,7 @@ function draw(){
   ctx.save();
   ctx.translate(-camera.x, -camera.y);
 
-  // soft hills
+  // hills
   ctx.fillStyle = "rgba(0,0,0,.06)";
   for(let i=0;i<6;i++){
     ctx.beginPath();
@@ -408,11 +449,6 @@ function draw(){
   drawParks(true);
 
   ctx.restore();
-
-  // debug
-  ctx.fillStyle = "rgba(0,0,0,.55)";
-  ctx.font = "12px system-ui";
-  ctx.fillText(`frame ${DOG.frame+1}`, 14, innerHeight-14);
 }
 
 function drawParks(foreground){
@@ -452,6 +488,7 @@ function drawDog(){
     ctx.fillStyle = "rgba(0,0,0,.35)";
     ctx.beginPath(); ctx.arc(px, py, 26, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = "#fff";
+    ctx.font = "12px system-ui";
     ctx.fillText("loading dog assets…", px-70, py-40);
     return;
   }
@@ -487,39 +524,42 @@ function loop(now){
 }
 
 /* =========================
-   RESET
+   BUTTONS (what you lost)
 ========================= */
+document.getElementById("btnIdle").addEventListener("click", ()=> setState("idle"));
+document.getElementById("btnWalk").addEventListener("click", ()=> setState("walk"));
+document.getElementById("btnPet").addEventListener("click",  ()=> setState("paw", 1.0));
+document.getElementById("btnSleep").addEventListener("click",()=> setState("sleep"));
+
 document.getElementById("reset").addEventListener("click", ()=>{
-  DOG.x = WORLD_W/2;
-  DOG.y = GROUND_Y;
-  DOG.vx = DOG.vy = 0;
-  DOG.facing = 1;
+  DOG.x = WORLD_W/2; DOG.y = GROUND_Y;
+  DOG.vx = DOG.vy = 0; DOG.facing = 1;
   for(const p of parks) p.visited = false;
+  renderParkList();
   setState("idle");
-  hint.innerHTML = "Reset! Walk to a sign and press <b>E</b> (or tap it).";
+  hint.innerHTML = "Reset! Click Pet or walk to a sign and press <b>E</b>.";
 });
 
 /* =========================
-   LOAD EVERYTHING THEN START
+   LOAD + START
 ========================= */
 (async function start(){
   try{
     loadedLabel.textContent = "loading…";
-
-    // IMPORTANT: real paths for your repo
     SPR.walk  = makeSprite(await loadImage(ASSETS.walk.src),  ASSETS.walk.frames);
     SPR.idle  = makeSprite(await loadImage(ASSETS.idle.src),  ASSETS.idle.frames);
     SPR.sleep = makeSprite(await loadImage(ASSETS.sleep.src), ASSETS.sleep.frames);
     SPR.paw   = makeSprite(await loadImage(ASSETS.paw.src),   ASSETS.paw.frames);
 
-    loadedLabel.textContent = "assets/… ✅";
+    loadedLabel.textContent = "assets/ ✅";
     setState("idle");
-    hint.innerHTML = "✅ Loaded! Click/tap the dog to pet him. Walk to a sign and press <b>E</b>.";
+    hint.innerHTML = "✅ Loaded! Use buttons, or walk with WASD/arrows. Tap dog to pet. Press <b>E</b> at signs.";
     requestAnimationFrame(loop);
   }catch(e){
     console.error(e);
     loadedLabel.textContent = "FAILED";
-    hint.textContent = "❌ Images failed to load. Make sure these exist: assets/dog_walk.png, assets/dog_idle.png, assets/dog_sleep.png, assets/dog_paw.png";
+    hint.textContent =
+      "❌ Images failed to load. Check exact filenames exist in /assets/: dog_walk.png dog_idle.png dog_sleep.png dog_paw.png";
   }
 })();
 </script>
