@@ -26,7 +26,8 @@
   <b>🐾 Fixed Dog Walk</b>
   <span class="pill">Arrows / WASD</span>
   <span class="pill">Shift = run</span>
-  <span class="pill">Sprite frames: <b id="framesLabel">6</b></span>
+  <span class="pill">Frames: <b id="framesLabel">6</b></span>
+  <span class="pill">Loaded: <b id="loadedPath">…</b></span>
   <label class="pill">Load sprite:
     <input id="file" type="file" accept="image/png,image/webp,image/jpeg">
   </label>
@@ -56,10 +57,8 @@ resize();
 ========================= */
 const WORLD_W = 2600;
 const WORLD_H = 1400;
-
-// Set a consistent ground line so the dog isn't floating high.
-const GROUND_Y = 980;       // << lower = higher; higher = lower
-const DOG_FOOT_OFFSET = 8;  // little lift so paws sit nicely
+const GROUND_Y = 980;
+const DOG_FOOT_OFFSET = 8;
 
 const camera = { x:0, y:0 };
 const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
@@ -72,19 +71,15 @@ addEventListener("keydown",(e)=>keys.add(e.key.toLowerCase()));
 addEventListener("keyup",(e)=>keys.delete(e.key.toLowerCase()));
 
 /* =========================
-   DOG SPRITE (IMPORTANT)
-   - We CROP transparent margins so dog isn't tiny/high.
-   - We ALWAYS draw ONE frame (never the whole strip).
+   DOG SPRITE
 ========================= */
-let FRAME_COUNT = 6; // << change if your sheet has more frames
+let FRAME_COUNT = 6;
 document.getElementById("framesLabel").textContent = FRAME_COUNT;
 
 let sheet = null;     // cropped sheet canvas
-let sheetCtx = null;
 let frameW = 0, frameH = 0;
 
 function cropTransparentMargins(img){
-  // Crop to non-transparent pixels (alpha > 5)
   const w = img.naturalWidth || img.width;
   const h = img.naturalHeight || img.height;
 
@@ -112,12 +107,8 @@ function cropTransparentMargins(img){
     }
   }
 
-  if(!found){
-    // fallback: no alpha pixels? just return as-is
-    return off;
-  }
+  if(!found) return off;
 
-  // padding
   const pad = 6;
   minX = Math.max(0, minX - pad);
   minY = Math.max(0, minY - pad);
@@ -135,17 +126,42 @@ function cropTransparentMargins(img){
   return cropped;
 }
 
-function loadDogImage(img){
-  sheet = cropTransparentMargins(img);  // <<< THIS is what fixes “dog high & tiny”
-  sheetCtx = sheet.getContext("2d");
+function loadDogImage(img, label){
+  sheet = cropTransparentMargins(img);
   frameW = Math.floor(sheet.width / FRAME_COUNT);
   frameH = sheet.height;
+  document.getElementById("loadedPath").textContent = label || "file picker";
 }
 
-/* Load default file with cache-busting so the browser doesn’t keep old images */
-const dogImg = new Image();
-dogImg.onload = ()=>loadDogImage(dogImg);
-dogImg.src = "dog_walk.png?v=" + Date.now();
+/* Try multiple likely paths (because your repo has folders) */
+async function tryLoadDog(){
+  const candidates = [
+    "dog_walk.png",
+    "assets/dog_walk.png",
+    "dog/dog_walk.png",
+    "assets/dog/dog_walk.png"
+  ];
+
+  for(const p of candidates){
+    const ok = await loadImage(p + "?v=" + Date.now()).catch(()=>null);
+    if(ok){
+      loadDogImage(ok, p);
+      return;
+    }
+  }
+  document.getElementById("loadedPath").textContent = "NOT FOUND";
+}
+
+function loadImage(src){
+  return new Promise((resolve,reject)=>{
+    const im = new Image();
+    im.onload = ()=>resolve(im);
+    im.onerror = reject;
+    im.src = src;
+  });
+}
+
+tryLoadDog();
 
 /* file picker */
 document.getElementById("file").addEventListener("change",(e)=>{
@@ -153,12 +169,12 @@ document.getElementById("file").addEventListener("change",(e)=>{
   if(!f) return;
   const url = URL.createObjectURL(f);
   const tmp = new Image();
-  tmp.onload = ()=>{ loadDogImage(tmp); URL.revokeObjectURL(url); };
+  tmp.onload = ()=>{ loadDogImage(tmp, "file picker"); URL.revokeObjectURL(url); };
   tmp.src = url;
 });
 
 /* =========================
-   DOG ENTITY
+   DOG
 ========================= */
 const dog = {
   x: WORLD_W/2,
@@ -171,9 +187,6 @@ const dog = {
   runMult: 1.75
 };
 
-/* =========================
-   UPDATE
-========================= */
 let last = performance.now();
 
 function update(dt){
@@ -189,7 +202,6 @@ function update(dt){
   if(up) ay -= 1;
   if(down) ay += 1;
 
-  // normalize diagonal
   const mag = Math.hypot(ax,ay) || 1;
   ax /= mag; ay /= mag;
 
@@ -200,7 +212,6 @@ function update(dt){
   dog.x += dog.vx * dt;
   dog.y += dog.vy * dt;
 
-  // keep dog on a “ground band”
   dog.x = clamp(dog.x, 60, WORLD_W-60);
   dog.y = clamp(dog.y, GROUND_Y-120, GROUND_Y+120);
 
@@ -209,7 +220,6 @@ function update(dt){
 
   const moving = (Math.abs(dog.vx) + Math.abs(dog.vy)) > 2;
 
-  // animate ONLY when moving
   if(sheet && frameW>0 && moving){
     dog.animT += dt;
     const fps = run ? 16 : 12;
@@ -218,28 +228,22 @@ function update(dt){
       dog.frame = (dog.frame + 1) % FRAME_COUNT;
     }
   } else {
-    dog.frame = 0; // idle
+    dog.frame = 0;
   }
 
-  // camera follows
   camera.x = clamp(dog.x - innerWidth/2, 0, WORLD_W - innerWidth);
   camera.y = clamp(dog.y - innerHeight/2, 0, WORLD_H - innerHeight);
 }
 
-/* =========================
-   DRAW
-========================= */
 function draw(){
   ctx.clearRect(0,0,innerWidth,innerHeight);
 
-  // sky
   ctx.fillStyle = "#bfe3ff";
   ctx.fillRect(0,0,innerWidth,innerHeight);
 
   ctx.save();
   ctx.translate(-camera.x, -camera.y);
 
-  // soft hills
   ctx.fillStyle = "rgba(0,0,0,.06)";
   for(let i=0;i<6;i++){
     ctx.beginPath();
@@ -247,19 +251,14 @@ function draw(){
     ctx.fill();
   }
 
-  // ground
   ctx.fillStyle = "rgba(0,0,0,.10)";
   ctx.fillRect(0, GROUND_Y+40, WORLD_W, WORLD_H-(GROUND_Y+40));
-
   ctx.fillStyle = "rgba(255,255,255,.22)";
   ctx.fillRect(0, GROUND_Y+10, WORLD_W, 24);
 
-  // dog
   drawDog();
-
   ctx.restore();
 
-  // debug (small)
   ctx.fillStyle = "rgba(0,0,0,.55)";
   ctx.font = "12px system-ui";
   ctx.fillText(`frame ${dog.frame+1}/${FRAME_COUNT}`, 14, innerHeight-14);
@@ -269,7 +268,6 @@ function drawDog(){
   const px = dog.x;
   const py = dog.y;
 
-  // Placeholder if not loaded
   if(!sheet || frameW<=0){
     ctx.fillStyle = "rgba(0,0,0,.35)";
     ctx.beginPath(); ctx.arc(px, py, 26, 0, Math.PI*2); ctx.fill();
@@ -278,17 +276,15 @@ function drawDog(){
     return;
   }
 
-  // BIG dog, not tiny
-  const targetH = 150;        // << make dog bigger/smaller
+  const targetH = 150;
   const scale = targetH / frameH;
   const drawW = frameW * scale;
   const drawH = frameH * scale;
 
-  // Foot anchoring: bottom-center sits on “ground”
   const dx = px - drawW/2;
   const dy = (py - drawH) + DOG_FOOT_OFFSET;
 
-  // Source crop: ONE FRAME ONLY
+  // ONE FRAME ONLY
   const sx = dog.frame * frameW;
   const sy = 0;
 
@@ -299,16 +295,10 @@ function drawDog(){
     ctx.translate(-px, 0);
   }
   ctx.imageSmoothingEnabled = true;
-
-  // THIS is what prevents the “strip moving” look:
   ctx.drawImage(sheet, sx, sy, frameW, frameH, dx, dy, drawW, drawH);
-
   ctx.restore();
 }
 
-/* =========================
-   LOOP
-========================= */
 function loop(now){
   const dt = Math.min(0.033, (now - last)/1000);
   last = now;
@@ -318,9 +308,6 @@ function loop(now){
 }
 requestAnimationFrame(loop);
 
-/* =========================
-   RESET
-========================= */
 document.getElementById("reset").addEventListener("click", ()=>{
   dog.x = WORLD_W/2;
   dog.y = GROUND_Y;
