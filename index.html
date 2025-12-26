@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html> 
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -176,7 +176,6 @@
 <script>
 /* =========================================================
    MY FOREVER DOG — NATIONAL PARKS ROAD TRIP
-   (with working sprite animations)
    ========================================================= */
 
 // ---------- Canvas sizing ----------
@@ -198,7 +197,7 @@ const dist  = (x1,y1,x2,y2)=>Math.hypot(x1-x2,y1-y2);
 // ---------- World ----------
 const WORLD_W = 5200;
 const WORLD_H = 1400;
-const PATH_Y  = 860;               // where the dog walks
+const PATH_Y  = 860;               // landmark sign row
 
 // camera
 const camera = { x:0, y:0 };
@@ -208,10 +207,10 @@ function centerCameraOn(wx,wy){
 }
 
 // ---------- Asset config ----------
-const ASSET_BASE        = "assets/";
-const DOG_WALK_FRAMES   = 6;      // how many dogs across the walk strip
-const DOG_SPRITE_SCALE  = 0.55;   // size of dog on screen
-const DOG_FACES_RIGHT   = true;   // if he still walks backwards, flip this to false
+const ASSET_BASE        = "./";        // 🔴 PNGs in SAME FOLDER as this HTML
+const DOG_WALK_FRAMES   = 6;           // frames across in dog_walk.png
+const DOG_SPRITE_SCALE  = 0.9;         // bigger dog
+const DOG_FACES_RIGHT   = true;        // if walking backwards, change to false
 
 const images = {};
 function loadImage(key, src){
@@ -223,7 +222,7 @@ function loadImage(key, src){
   });
 }
 
-// load dog sprites (they can be single images)
+// load dog sprites
 (async function loadAssets(){
   await loadImage("dog_idle",  ASSET_BASE + "dog_idle.png");
   await loadImage("dog_walk",  ASSET_BASE + "dog_walk.png");
@@ -234,16 +233,16 @@ function loadImage(key, src){
 
 // ---------- Parks / Landmarks ----------
 const parks = [
-  { id:"yosemite",    name:"Yosemite",       subtitle:"Half Dome",                   emoji:"⛰️", x: 320,  y: PATH_Y, animal:{ type:"bear",   name:"Black Bear",    emoji:"🐻", message:"A bear sniffs the air… your dog stays calm. Good pup!" } },
-  { id:"grandcanyon", name:"Grand Canyon",   subtitle:"South Rim View",              emoji:"🧡", x: 820,  y: PATH_Y, animal:{ type:"condor", name:"Condor",        emoji:"🦅", message:"A condor glides overhead. Your dog looks up like: wow!" } },
-  { id:"zion",        name:"Zion",          subtitle:"Angels Landing",              emoji:"🪨", x: 1320, y: PATH_Y, animal:{ type:"bighorn",name:"Bighorn Sheep", emoji:"🐏", message:"A bighorn sheep poses for a photo. Your dog wags politely." } },
-  { id:"arches",      name:"Arches",        subtitle:"Delicate Arch",               emoji:"🌅", x: 1820, y: PATH_Y, animal:{ type:"fox",   name:"Desert Fox",    emoji:"🦊", message:"A fox darts by! Your dog freezes… then smiles." } },
-  { id:"yellowstone", name:"Yellowstone",   subtitle:"Old Faithful",                emoji:"💦", x: 2320, y: PATH_Y, animal:{ type:"bison", name:"Bison",         emoji:"🦬", message:"A bison is nearby. Your dog keeps a respectful distance. Smart!" } },
-  { id:"tetons",      name:"Grand Teton",   subtitle:"Teton Range",                 emoji:"🏔️", x: 2820, y: PATH_Y, animal:{ type:"moose", name:"Moose",         emoji:"🫎", message:"A moose munches leaves. Your dog is amazed (and quiet)." } },
-  { id:"glacier",     name:"Glacier",       subtitle:"Going-to-the-Sun Road",       emoji:"❄️", x: 3320, y: PATH_Y, animal:{ type:"goat",  name:"Mountain Goat", emoji:"🐐", message:"A mountain goat climbs like a superhero." } },
-  { id:"rockymtn",    name:"Rocky Mountain",subtitle:"Trail Ridge Road",            emoji:"🌲", x: 3820, y: PATH_Y, animal:{ type:"elk",   name:"Elk",           emoji:"🦌", message:"An elk bugles! Your dog tilts head: ‘What was THAT?’" } },
-  { id:"acadia",      name:"Acadia",        subtitle:"Cadillac Mountain",           emoji:"🌊", x: 4320, y: PATH_Y, animal:{ type:"seal",  name:"Harbor Seal",   emoji:"🦭", message:"A seal pops up and splashes. Your dog is delighted." } },
-  { id:"everglades",  name:"Everglades",    subtitle:"Alligator Alley",             emoji:"🐊", x: 4820, y: PATH_Y, animal:{ type:"gator", name:"Alligator",     emoji:"🐊", message:"You spot an alligator (from far away!). Your dog stays safe." } },
+  { id:"yosemite",    name:"Yosemite",    subtitle:"Half Dome",             emoji:"⛰️", x: 320,  y: PATH_Y, animal:{ type:"bear",   name:"Black Bear",    emoji:"🐻", message:"A bear sniffs the air… your dog stays calm. Good pup!" } },
+  { id:"grandcanyon", name:"Grand Canyon",subtitle:"South Rim View",        emoji:"🧡", x: 820,  y: PATH_Y, animal:{ type:"condor", name:"Condor",        emoji:"🦅", message:"A condor glides overhead. Your dog looks up like: wow!" } },
+  { id:"zion",        name:"Zion",       subtitle:"Angels Landing",         emoji:"🪨", x: 1320, y: PATH_Y, animal:{ type:"bighorn",name:"Bighorn Sheep", emoji:"🐏", message:"A bighorn sheep poses for a photo. Your dog wags politely." } },
+  { id:"arches",      name:"Arches",     subtitle:"Delicate Arch",          emoji:"🌅", x: 1820, y: PATH_Y, animal:{ type:"fox",   name:"Desert Fox",    emoji:"🦊", message:"A fox darts by! Your dog freezes… then smiles." } },
+  { id:"yellowstone", name:"Yellowstone",subtitle:"Old Faithful",           emoji:"💦", x: 2320, y: PATH_Y, animal:{ type:"bison", name:"Bison",         emoji:"🦬", message:"A bison is nearby. Your dog keeps a respectful distance. Smart!" } },
+  { id:"tetons",      name:"Grand Teton",subtitle:"Teton Range",            emoji:"🏔️", x: 2820, y: PATH_Y, animal:{ type:"moose", name:"Moose",         emoji:"🫎", message:"A moose munches leaves. Your dog is amazed (and quiet)." } },
+  { id:"glacier",     name:"Glacier",    subtitle:"Going-to-the-Sun Road",  emoji:"❄️", x: 3320, y: PATH_Y, animal:{ type:"goat",  name:"Mountain Goat", emoji:"🐐", message:"A mountain goat climbs like a superhero." } },
+  { id:"rockymtn",    name:"Rocky Mountain",subtitle:"Trail Ridge Road",    emoji:"🌲", x: 3820, y: PATH_Y, animal:{ type:"elk",   name:"Elk",           emoji:"🦌", message:"An elk bugles! Your dog tilts head: ‘What was THAT?’" } },
+  { id:"acadia",      name:"Acadia",     subtitle:"Cadillac Mountain",      emoji:"🌊", x: 4320, y: PATH_Y, animal:{ type:"seal",  name:"Harbor Seal",   emoji:"🦭", message:"A seal pops up and splashes. Your dog is delighted." } },
+  { id:"everglades",  name:"Everglades", subtitle:"Alligator Alley",        emoji:"🐊", x: 4820, y: PATH_Y, animal:{ type:"gator", name:"Alligator",     emoji:"🐊", message:"You spot an alligator (from far away!). Your dog stays safe." } },
 ];
 
 const discovered = new Set();
@@ -251,12 +250,12 @@ const discovered = new Set();
 // ---------- Dog ----------
 const dog = {
   x: 240,
-  y: PATH_Y + 60,
+  y: PATH_Y + 10,     // 🔼 moved up so he’s closer to signs
   w: 84,
   h: 64,
   speed: 3.4,
   dir: 1,
-  state: "idle",  // idle | walk | happy | eat | sleep | travel
+  state: "idle",      // idle | walk | happy | eat | sleep | travel
   timer: 0,
   animTime: 0
 };
@@ -388,7 +387,7 @@ function travelTo(park){
   moveLeft = moveRight = false;
 
   dog.x = clamp(park.x - 110, 0, WORLD_W - dog.w);
-  dog.y = park.y + 60;
+  dog.y = park.y + 10;  // 🔼 keep dog at same height as idle
   dog.dir = 1;
 
   centerCameraOn(dog.x, dog.y);
@@ -408,7 +407,7 @@ function getParkAnimal(park){
   return {
     id: "animal_" + park.id,
     x: park.x + 120,
-    y: park.y + 60,
+    y: park.y + 10,
     r: 34,
     emoji: park.animal.emoji,
     message: park.animal.message,
@@ -438,7 +437,7 @@ function checkDiscovery(){
   for(const p of parks){
     if(discovered.has(p.id)) continue;
 
-    const d = dist(dog.x + dog.w/2, dog.y + dog.h/2, p.x, p.y + 60);
+    const d = dist(dog.x + dog.w/2, dog.y + dog.h/2, p.x, p.y + 30);
     if(d < 95){
       discovered.add(p.id);
       renderHUD();
@@ -555,7 +554,6 @@ function drawDog(){
   const img = images[key];
 
   if(img){
-    // how many frames in this image?
     let frames = 1;
     if(key === "dog_walk") frames = DOG_WALK_FRAMES;
 
@@ -572,10 +570,8 @@ function drawDog(){
 
     let flip;
     if(DOG_FACES_RIGHT){
-      // artwork faces right → flip when dog moves left
       flip = (dog.dir < 0);
     } else {
-      // artwork faces left → flip when dog moves right
       flip = (dog.dir > 0);
     }
 
