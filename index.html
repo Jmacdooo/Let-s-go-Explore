@@ -118,7 +118,7 @@
   .stamp small { color:#333; }
   .stamp .big { font-size: 22px; margin-top: 6px; }
 
-  /* Mobile friendly buttons */
+  /* Mobile */
   @media (max-width: 520px) {
     #hud { width: 280px; }
     .btn { padding: 10px 10px; }
@@ -178,12 +178,12 @@
    MY FOREVER DOG — NATIONAL PARKS ROAD TRIP
    ========================================================= */
 
-// ---------- Canvas sizing ----------
+// ---------- Canvas ----------
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
 function resize() {
-  canvas.width = Math.floor(window.innerWidth * devicePixelRatio);
+  canvas.width  = Math.floor(window.innerWidth * devicePixelRatio);
   canvas.height = Math.floor(window.innerHeight * devicePixelRatio);
   ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
 }
@@ -197,9 +197,8 @@ const dist  = (x1,y1,x2,y2)=>Math.hypot(x1-x2,y1-y2);
 // ---------- World ----------
 const WORLD_W = 5200;
 const WORLD_H = 1400;
-const PATH_Y  = 860;   // where the landmark signs sit
+const PATH_Y  = 860;   // landmark row
 
-// camera
 const camera = { x:0, y:0 };
 function centerCameraOn(wx,wy){
   camera.x = clamp(wx - window.innerWidth /2, 0, WORLD_W - window.innerWidth);
@@ -207,9 +206,9 @@ function centerCameraOn(wx,wy){
 }
 
 // ---------- Assets ----------
-const ASSET_BASE       = "./";   // PNGs in same folder
-const DOG_WALK_FRAMES  = 6;      // frames across in dog_walk.png
-const DOG_SPRITE_SCALE = 0.9;    // dog size
+const ASSET_BASE       = "assets/"; // <<--- matches your repo
+const DOG_WALK_FRAMES  = 5;         // your strip has 5 dogs
+const DOG_SPRITE_SCALE = 0.9;
 
 const images = {};
 function loadImage(key, src){
@@ -229,7 +228,7 @@ function loadImage(key, src){
   await loadImage("dog_sleep", ASSET_BASE + "dog_sleep.png");
 })();
 
-// ---------- Parks / Landmarks ----------
+// ---------- Parks ----------
 const parks = [
   { id:"yosemite",    name:"Yosemite",      subtitle:"Half Dome",                  emoji:"⛰️", x: 320,  y: PATH_Y, animal:{ name:"Black Bear",    emoji:"🐻", message:"A bear sniffs the air… your dog stays calm. Good pup!" } },
   { id:"grandcanyon", name:"Grand Canyon",  subtitle:"South Rim View",             emoji:"🧡", x: 820,  y: PATH_Y, animal:{ name:"Condor",        emoji:"🦅", message:"A condor glides overhead. Your dog looks up like: wow!" } },
@@ -248,11 +247,11 @@ const discovered = new Set();
 // ---------- Dog ----------
 const dog = {
   x: 240,
-  y: PATH_Y + 10,   // high enough under the signs
+  y: PATH_Y + 10,   // visible just under the signs
   w: 84,
   h: 64,
   speed: 3.4,
-  dir: 1,           // 1 = right, -1 = left
+  dir: 1,           // 1 right, -1 left
   state: "idle",    // idle | walk | happy | eat | sleep | travel
   timer: 0,
   animTime: 0
@@ -340,7 +339,7 @@ function renderHUD(){
 }
 renderHUD();
 
-// ---------- Map builder ----------
+// ---------- Map ----------
 function buildMap(){
   const grid = document.getElementById("mapGrid");
   grid.innerHTML = "";
@@ -373,7 +372,7 @@ function buildMap(){
   });
 }
 
-// ---------- Passport builder ----------
+// ---------- Passport ----------
 function buildPassport(){
   const grid = document.getElementById("passportGrid");
   grid.innerHTML = "";
@@ -410,7 +409,7 @@ function travelTo(park){
   setDogMood("happy", 90, `🧳 Traveled to ${park.name}!`);
 }
 
-// ---------- Mood helper ----------
+// ---------- Mood ----------
 function setDogMood(state, frames, message){
   dog.state = state;
   dog.timer = frames;
@@ -465,7 +464,7 @@ function checkDiscovery(){
   }
 }
 
-// ---------- Update loop ----------
+// ---------- Update ----------
 function update(){
   if(moveLeft)  dog.x -= dog.speed;
   if(moveRight) dog.x += dog.speed;
@@ -488,7 +487,7 @@ function update(){
   if(travelFlash > 0) travelFlash--;
 }
 
-// ---------- Drawing helpers ----------
+// ---------- Draw ----------
 function drawBackground(){
   ctx.fillStyle = "#bde0fe";
   ctx.fillRect(0,0,window.innerWidth, window.innerHeight);
@@ -585,9 +584,7 @@ function drawDog(){
     const drawW = fw * DOG_SPRITE_SCALE;
     const drawH = fh * DOG_SPRITE_SCALE;
 
-    // 🐶 Your PNG faces RIGHT:
-    // moving right (dir > 0)  → no flip
-    // moving left  (dir < 0)  → flip
+    // PNG faces RIGHT → flip only when moving LEFT
     const flip = (dog.dir < 0);
 
     ctx.save();
@@ -600,7 +597,7 @@ function drawDog(){
     }
     ctx.restore();
   } else {
-    // fallback rectangle if images not found
+    // fallback block if image missing
     ctx.fillStyle = "#a97142";
     ctx.fillRect(sx, sy, dog.w, dog.h);
   }
