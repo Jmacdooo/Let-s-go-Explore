@@ -85,9 +85,9 @@ const WALK_FRAMES = 5;
 
 // 3 parks (fractions of the screen width)
 const parks = [
-  { name:"Yosemite",    subtitle:"Half Dome",        pos:0.2, visited:false },
-  { name:"Yellowstone", subtitle:"Old Faithful",     pos:0.5, visited:false },
-  { name:"Acadia",      subtitle:"Cadillac Mountain",pos:0.8, visited:false }
+  { name:"Yosemite",    subtitle:"Half Dome",         pos:0.2, visited:false },
+  { name:"Yellowstone", subtitle:"Old Faithful",      pos:0.5, visited:false },
+  { name:"Acadia",      subtitle:"Cadillac Mountain", pos:0.8, visited:false }
 ];
 
 // --------------------------------------------------
@@ -258,7 +258,7 @@ function drawParks(){
 }
 
 // --------------------------------------------------
-// DRAW DOG (all poses same size; walk uses strip)
+// DRAW DOG
 // --------------------------------------------------
 function drawDog(){
   let img = images["idle"];
@@ -278,7 +278,7 @@ function drawDog(){
   const frameW = img.width / frames;
   const frameH = img.height;
 
-  const scale = DOG_HEIGHT / frameH;   // force same height
+  const scale = DOG_HEIGHT / frameH;
   const drawW = frameW * scale;
   const drawH = DOG_HEIGHT;
 
