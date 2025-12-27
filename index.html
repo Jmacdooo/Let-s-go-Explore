@@ -79,11 +79,21 @@ function resize(){
 window.addEventListener("resize", resize);
 resize();
 
-// ground line & dog size
 function groundY(){ return canvas.height - 160; }
-const DOG_HEIGHT   = 260; // change this if you want bigger/smaller dog
-const WALK_FRAMES  = 5;
-const IMG_BASE     = "assets/"; // <<< your folder from screenshot
+
+// This is the "visual" base height for the idle dog
+const BASE_DOG_HEIGHT = 260;          
+const WALK_FRAMES     = 5;
+const IMG_BASE        = "assets/";
+
+// Per-state extra zoom so small artwork (walk/sleep) can be enlarged
+const STATE_SCALE = {
+  idle:  1.0,
+  walk:  1.4,   // make walking dog bigger
+  eat:   1.0,
+  paw:   1.0,
+  sleep: 1.4    // make sleeping dog bigger too
+};
 
 // 3 national parks
 const parks = [
@@ -102,11 +112,10 @@ function load(key, file){
   images[key] = img;
 }
 
-load("walk","dog_walk.png");   // 5-frame strip
+load("walk","dog_walk.png");   // 5-frame strip (tiny dog before)
 load("idle","dog_idle.png");
 load("eat","dog_eat.png");
 load("paw","dog_paw.png");
-// optional, not used yet but fine:
 load("sleep","dog_sleep.png");
 
 // ----------------------------------------
@@ -114,16 +123,14 @@ load("sleep","dog_sleep.png");
 // ----------------------------------------
 const dog = {
   x: canvas.width * 0.15,
-  y: 0,          // set after resize
+  y: groundY(),     // THIS is the baseline where paws touch
   dir: 1,
   speed: 6,
   anim: 0,
-  state: "idle"  // "idle" | "walk" | "eat" | "paw"
+  state: "idle"     // "idle" | "walk" | "eat" | "paw" | "sleep"
 };
 
-dog.y = groundY() - DOG_HEIGHT;
-
-let left = false;
+let left  = false;
 let right = false;
 
 // ----------------------------------------
@@ -187,24 +194,25 @@ function showMsg(text){
 // UPDATE
 // ----------------------------------------
 function update(){
-  // walking
+  // keep baseline at ground every frame
+  dog.y = groundY();
+
   if(dog.state === "walk"){
     if(left)  dog.x -= dog.speed;
     if(right) dog.x += dog.speed;
   }
 
-  // stay on screen
+  // clamp to screen
   if(dog.x < 40) dog.x = 40;
   if(dog.x > canvas.width - 40) dog.x = canvas.width - 40;
 
-  dog.y = groundY() - DOG_HEIGHT;
   dog.anim++;
 
   // stop at park signs
-  var dogCenter = dog.x;
-  for(var i=0;i<parks.length;i++){
-    var p = parks[i];
-    var parkX = p.pos * canvas.width;
+  const dogCenter = dog.x;
+  for(let i=0;i<parks.length;i++){
+    const p = parks[i];
+    const parkX = p.pos * canvas.width;
     if(!p.visited && Math.abs(dogCenter - parkX) < 40 && dog.state === "walk"){
       stopMoving();
       p.visited = true;
@@ -228,19 +236,19 @@ function drawBackground(){
   ctx.fillStyle = "#bde0fe";
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  var gy = groundY();
+  const gy = groundY();
   ctx.fillStyle = "#90e0ef";
   ctx.fillRect(0, gy, canvas.width, canvas.height - gy);
 }
 
 function drawParks(){
-  var gy = groundY();
+  const gy = groundY();
   ctx.textBaseline = "middle";
 
-  for(var i=0;i<parks.length;i++){
-    var p = parks[i];
-    var x = p.pos * canvas.width;
-    var signTop = gy - 120;
+  for(let i=0;i<parks.length;i++){
+    const p = parks[i];
+    const x = p.pos * canvas.width;
+    const signTop = gy - 120;
 
     // pole
     ctx.fillStyle = "rgba(0,0,0,0.3)";
@@ -265,39 +273,53 @@ function drawParks(){
 }
 
 // ----------------------------------------
-// DRAW DOG (idle + walk, same size)
+// DRAW DOG (baseline + per-state scale)
 // ----------------------------------------
 function drawDog(){
-  var img = images["idle"];
-  var frames = 1;
+  // pick which state to show
+  let state = dog.state;
+  if(!STATE_SCALE[state]) state = "idle";
 
-  if(dog.state === "walk"){
-    img = images["walk"];
+  let img = images["idle"];
+  let frames = 1;
+
+  if(state === "walk"){
+    img    = images["walk"];
     frames = WALK_FRAMES;
-  } else if(dog.state === "eat"){
+  } else if(state === "eat"){
     img = images["eat"] || images["idle"];
-  } else if(dog.state === "paw"){
+  } else if(state === "paw"){
     img = images["paw"] || images["idle"];
+  } else if(state === "sleep"){
+    img = images["sleep"] || images["idle"];
   }
 
   if(!img || !img.complete) return;
 
-  var frameW = img.width / frames;
-  var frameH = img.height;
+  const frameW = img.width / frames;
+  const frameH = img.height;
 
-  var scale = DOG_HEIGHT / frameH;
-  var drawW = frameW * scale;
-  var drawH = DOG_HEIGHT;
+  // base scale forces the IMAGE to be roughly BASE_DOG_HEIGHT tall,
+  // then we multiply by STATE_SCALE to make small sprites larger.
+  const baseScale = BASE_DOG_HEIGHT / frameH;
+  const extra     = STATE_SCALE[state] || 1.0;
+  const scale     = baseScale * extra;
 
-  var frameIndex = 0;
-  if(frames > 1 && dog.state === "walk"){
+  const drawW = frameW * scale;
+  const drawH = frameH * scale;
+
+  // which frame?
+  let frameIndex = 0;
+  if(frames > 1 && state === "walk"){
     frameIndex = Math.floor(dog.anim / 6) % frames;
   }
 
-  var sx = frameIndex * frameW;
-  var sy = 0;
-  var dx = dog.x - drawW / 2;
-  var dy = dog.y;
+  const sx = frameIndex * frameW;
+  const sy = 0;
+
+  // dog.y is the GROUND LINE (paws), so image sits above that
+  const dx = dog.x - drawW / 2;
+  const dy = dog.y - drawH;
 
   ctx.save();
   if(dog.dir < 0){
@@ -332,6 +354,7 @@ function loop(){
 }
 loop();
 </script>
+
 
 </body>
 </html>
