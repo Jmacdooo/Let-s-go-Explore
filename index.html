@@ -256,7 +256,7 @@ function loadImageSmart(key, filename){
 const parks = [
   { id:"yosemite",    name:"Yosemite",      subtitle:"Half Dome",                  emoji:"⛰️", x: 320,  y: PATH_Y, animal:{ name:"Black Bear",    emoji:"🐻", message:"A bear sniffs the air… your dog stays calm. Good pup!" } },
   { id:"grandcanyon", name:"Grand Canyon",  subtitle:"South Rim View",             emoji:"🧡", x: 820,  y: PATH_Y, animal:{ name:"Condor",        emoji:"🦅", message:"A condor glides overhead. Your dog looks up like: wow!" } },
-  { id:"zion",        name:"Zion",          subtitle:"Angels Landing",             emoji:"🪨", x: 1320, y: PATH_Y, animal:{ name:"Bighorn Sheep", emoji:"🐏", message:"A bighorn sheep poses for a photo. Your dog wags politely." } },
+  { id:"zion",        name:"Zion",          subtitle:"Angels Landing",             emoji:"🪨", x: 1320, y: PATH_Y, animal:{ name:"Bighorn Sheep", emoji:"🦏", message:"A bighorn sheep poses for a photo. Your dog wags politely." } },
   { id:"arches",      name:"Arches",        subtitle:"Delicate Arch",              emoji:"🌅", x: 1820, y: PATH_Y, animal:{ name:"Desert Fox",    emoji:"🦊", message:"A fox darts by! Your dog freezes… then smiles." } },
   { id:"yellowstone", name:"Yellowstone",   subtitle:"Old Faithful",               emoji:"💦", x: 2320, y: PATH_Y, animal:{ name:"Bison",         emoji:"🦬", message:"A bison is nearby. Your dog keeps a respectful distance. Smart!" } },
   { id:"tetons",      name:"Grand Teton",   subtitle:"Teton Range",                emoji:"🏔️", x: 2820, y: PATH_Y, animal:{ name:"Moose",         emoji:"🫎", message:"A moose munches leaves. Your dog is amazed (and quiet)." } },
@@ -271,7 +271,7 @@ const discovered = new Set();
 // ---------- Dog ----------
 const dog = {
   x: 240,
-  y: PATH_Y - 160,   // higher so whole dog is visible
+  y: PATH_Y - 260,   // higher so whole dog is visible
   w: 84,
   h: 64,
   speed: 3.4,
@@ -307,15 +307,10 @@ rightBtn.onclick = ()=>{
 stopBtn.onclick  = ()=>{
   moveLeft = moveRight = false;
   dog.state = "idle";
-  dog.y = PATH_Y - 160; // keep dog at correct height even when stopped
 };
 
 petBtn.onclick   = ()=>setDogMood("happy", 140, "❤️ Your dog feels loved!");
-feedBtn.onclick  = ()=>{
-  setDogMood("eat", 160, "🍖 Yum! Happy dog energy!");
-  dog.y = PATH_Y - 160;  // keep him up high during feed
-};
-
+feedBtn.onclick  = ()=>setDogMood("eat",   160, "🍖 Yum! Happy dog energy!");
 
 window.addEventListener("keydown",(e)=>{
   if(e.key==="ArrowLeft")  leftBtn.onclick();
@@ -431,7 +426,7 @@ function travelTo(park){
   moveLeft = moveRight = false;
 
   dog.x = clamp(park.x - 110, 0, WORLD_W - dog.w);
-  dog.y = PATH_Y - 160;
+  dog.y = PATH_Y - 260;
   dog.dir = 1;
 
   centerCameraOn(dog.x, dog.y);
@@ -443,10 +438,8 @@ function travelTo(park){
 function setDogMood(state, frames, message){
   dog.state = state;
   dog.timer = frames;
-  dog.y = PATH_Y - 160; // always keep him at correct height for ALL moods
   if(message) toast(message);
 }
-
 
 // ---------- Animals ----------
 function getParkAnimal(park){
@@ -502,17 +495,8 @@ function update(){
   if(moveRight) dog.x += dog.speed;
   dog.x = clamp(dog.x, 0, WORLD_W - dog.w);
 
-  // 🔥 always enforce height:
+  // always enforce height for ALL states (idle, walk, eat, happy, travel)
   dog.y = PATH_Y - 260;
-
-  if(dog.timer > 0) dog.timer--;
-  if(dog.timer === 0 && !moveLeft && !moveRight){
-    dog.state = "idle";
-  }
-
-  ...
-}
-
 
   if(dog.timer > 0) dog.timer--;
   if(dog.timer === 0 && !moveLeft && !moveRight){
@@ -705,5 +689,6 @@ tick();
 travelTo(parks[0]);
 toast("🐶 Welcome! Use Walk buttons (or arrow keys). Tap animals. Collect all 10 landmarks!");
 </script>
+
 </body>
 </html>
