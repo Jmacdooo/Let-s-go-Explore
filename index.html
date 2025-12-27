@@ -174,9 +174,9 @@
 </div>
 
 <script>
-/* =========================================================
-   MY FOREVER DOG — NATIONAL PARKS ROAD TRIP
-   ========================================================= */
+/* MY FOREVER DOG — NATIONAL PARKS ROAD TRIP
+   Clean full version: same-size dogs + path walking
+*/
 
 // ---------- Canvas ----------
 const canvas = document.getElementById("game");
@@ -198,8 +198,10 @@ const dist  = (x1,y1,x2,y2)=>Math.hypot(x1-x2,y1-y2);
 const WORLD_W = 5200;
 const WORLD_H = 1400;
 
-// CHANGED: raise signs & animals higher on the screen
-const PATH_Y  = 740;   // used for signs + animals (was 860)
+// Raise signs so there is room for park photos above the dog
+const PATH_Y  = 760;          // landmark row
+const DOG_GROUND_Y = 920;     // where paws touch the ground band
+const DOG_TARGET_HEIGHT = 260;// ALL dog poses use this height
 
 const camera = { x:0, y:0 };
 function centerCameraOn(wx,wy){
@@ -208,17 +210,9 @@ function centerCameraOn(wx,wy){
 }
 
 // ---------- Assets ----------
-const DOG_WALK_FRAMES  = 5;    
+const DOG_WALK_FRAMES = 5;
 
-// CHANGED: make dog a bit smaller so whole body fits
-const DOG_SPRITE_SCALE = 0.55;  // was 0.7
-
-const IMAGE_BASES = [
-  "assets/",
-  "./assets/",
-  "../assets/"
-];
-
+const IMAGE_BASES = ["assets/", "./assets/", "../assets/"];
 const images = {};
 
 function loadImageSmart(key, filename){
@@ -232,15 +226,8 @@ function loadImageSmart(key, filename){
       }
       const base = IMAGE_BASES[i++];
       const img = new Image();
-      img.onload = () => {
-        images[key] = img;
-        console.log("✅ Loaded", key, "from", img.src);
-        resolve(true);
-      };
-      img.onerror = () => {
-        console.warn("⚠️ Could not load", base + filename, "— trying next base");
-        attempt();
-      };
+      img.onload = () => { images[key] = img; resolve(true); };
+      img.onerror = () => { attempt(); };
       img.src = base + filename;
     }
     attempt();
@@ -274,15 +261,20 @@ const discovered = new Set();
 // ---------- Dog ----------
 const dog = {
   x: 240,
-  y: PATH_Y - 260,   // logical row; drawing uses sprite height
+  y: DOG_GROUND_Y - DOG_TARGET_HEIGHT, // top of sprite so paws are on ground
   w: 84,
-  h: 64,
+  h: DOG_TARGET_HEIGHT,
   speed: 3.4,
-  dir: 1,           
-  state: "idle",    
+  dir: 1,
+  state: "idle",      // idle | walk | happy | eat | sleep
   timer: 0,
   animTime: 0
 };
+
+// auto-walk along the path to a selected park
+let autoWalk = false;
+let autoTargetX = null;
+let autoTargetPark = null;
 
 // ---------- Controls ----------
 let moveLeft=false, moveRight=false;
@@ -296,30 +288,34 @@ const mapBtn      = document.getElementById("mapBtn");
 const passportBtn = document.getElementById("passportBtn");
 
 leftBtn.onclick  = ()=>{
+  autoWalk = false;
   moveLeft  = true;
   moveRight = false;
   dog.dir   = -1;
   dog.state = "walk";
 };
 rightBtn.onclick = ()=>{
+  autoWalk = false;
   moveRight = true;
   moveLeft  = false;
   dog.dir   = 1;
   dog.state = "walk";
 };
 stopBtn.onclick  = ()=>{
+  autoWalk = false;
   moveLeft = moveRight = false;
   dog.state = "idle";
 };
 
-// CHANGED: when petting or feeding, stop movement so the scene freezes
-petBtn.onclick   = ()=>{
+petBtn.onclick = ()=>{
+  autoWalk = false;
   moveLeft = moveRight = false;
   setDogMood("happy", 140, "❤️ Your dog feels loved!");
 };
-feedBtn.onclick  = ()=>{
+feedBtn.onclick = ()=>{
+  autoWalk = false;
   moveLeft = moveRight = false;
-  setDogMood("eat",   160, "🍖 Yum! Happy dog energy!");
+  setDogMood("eat", 160, "🍖 Yum! Happy dog energy!");
 };
 
 window.addEventListener("keydown",(e)=>{
@@ -429,19 +425,17 @@ function buildPassport(){
   });
 }
 
-// ---------- Travel ----------
+// ---------- Travel (path walking) ----------
 let travelFlash = 0;
+
 function travelTo(park){
-  dog.state = "travel";
+  autoWalk       = true;
+  autoTargetPark = park;
+  autoTargetX    = clamp(park.x - 110, 0, WORLD_W - dog.w);
   moveLeft = moveRight = false;
-
-  dog.x = clamp(park.x - 110, 0, WORLD_W - dog.w);
-  dog.y = PATH_Y - 260;
-  dog.dir = 1;
-
-  centerCameraOn(dog.x, dog.y);
-  travelFlash = 18;
-  setDogMood("happy", 90, `🧳 Traveled to ${park.name}!`);
+  dog.dir   = (autoTargetX >= dog.x) ? 1 : -1;
+  dog.state = "walk";
+  toast(`🧳 Walking to ${park.name}...`);
 }
 
 // ---------- Mood ----------
@@ -473,7 +467,8 @@ canvas.addEventListener("pointerdown",(e)=>{
   for(const a of animals){
     const d = dist(wx, wy, a.x, a.y);
     if(d < a.r + 22){
-      moveLeft = moveRight = false;                // stop moving when tapping animals too
+      autoWalk = false;
+      moveLeft = moveRight = false;
       setDogMood("happy", 140, `${a.emoji} ${a.message}`);
       return;
     }
@@ -489,7 +484,230 @@ function checkDiscovery(){
       p.x, p.y
     );
     if(d < 95){
-      d
+      discovered.add(p.id);
+      renderHUD();
+      setDogMood("happy", 160, `✨ Discovered ${p.name} — ${p.subtitle}!`);
+      if(discovered.size === parks.length){
+        toast("🏁 You did it! All landmarks collected!");
+      }
+      return;
+    }
+  }
+}
+
+// ---------- Update ----------
+function update(){
+  // auto-walk path to park
+  if(autoWalk){
+    const step = dog.speed;
+    if(Math.abs(autoTargetX - dog.x) <= step){
+      dog.x = autoTargetX;
+      autoWalk = false;
+      setDogMood("happy", 120, `🧳 Arrived at ${autoTargetPark.name}!`);
+    } else {
+      dog.x += (autoTargetX > dog.x ? step : -step);
+    }
+  } else {
+    if(moveLeft)  dog.x -= dog.speed;
+    if(moveRight) dog.x += dog.speed;
+  }
+
+  dog.x = clamp(dog.x, 0, WORLD_W - dog.w);
+
+  // keep him glued to ground line
+  dog.y = DOG_GROUND_Y - DOG_TARGET_HEIGHT;
+
+  if(dog.timer > 0) dog.timer--;
+  if(dog.timer === 0 && !moveLeft && !moveRight && !autoWalk){
+    dog.state = "idle";
+  }
+
+  dog.animTime += 1;
+  centerCameraOn(dog.x + dog.w/2, dog.y + dog.h/2);
+  checkDiscovery();
+
+  if(toastT > 0){
+    toastT--;
+    if(toastT === 0) toastEl.classList.remove("show");
+  }
+
+  if(travelFlash > 0) travelFlash--;
+}
+
+// ---------- Draw ----------
+function drawBackground(){
+  ctx.fillStyle = "#bde0fe";
+  ctx.fillRect(0,0,window.innerWidth, window.innerHeight);
+
+  ctx.fillStyle = "rgba(0,0,0,0.06)";
+  for(let i=0;i<14;i++){
+    const x = (i*420 - (camera.x*0.35)%420);
+    ctx.beginPath();
+    ctx.ellipse(x, 240, 260, 120, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  const groundY = 920 - camera.y;
+  ctx.fillStyle = "#8ecae6";
+  ctx.fillRect(-camera.x, groundY, WORLD_W, 500);
+
+  ctx.fillStyle = "rgba(0,0,0,0.10)";
+  ctx.fillRect(-camera.x, groundY + 55, WORLD_W, 30);
+
+  ctx.fillStyle = "rgba(255,255,255,0.55)";
+  for(let i=0;i<60;i++){
+    const fx = (i*140 - (camera.x*0.6)%140) + 20;
+    const fy = groundY + 30 + (i%3)*10;
+    ctx.fillRect(fx, fy, 3, 3);
+  }
+}
+
+function drawLandmarks(){
+  for(const p of parks){
+    const sx = p.x - camera.x;
+    const sy = p.y - camera.y;
+
+    ctx.fillStyle = discovered.has(p.id) ? "rgba(0,0,0,0.75)" : "rgba(0,0,0,0.35)";
+    ctx.fillRect(sx - 10, sy + 25, 20, 90);
+
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.fillRect(sx - 110, sy - 20, 220, 48);
+
+    ctx.fillStyle = "#000";
+    ctx.font = "14px system-ui";
+    ctx.fillText(p.name, sx - 100, sy + 0);
+    ctx.font = "12px system-ui";
+    ctx.fillText(p.subtitle, sx - 100, sy + 18);
+
+    ctx.font = "18px system-ui";
+    ctx.fillText(discovered.has(p.id) ? "✅" : "✨", sx + 86, sy + 16);
+  }
+}
+
+function drawAnimals(){
+  for(const a of animals){
+    const sx = a.x - camera.x;
+    const sy = a.y - camera.y;
+
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.beginPath();
+    ctx.arc(sx, sy, a.r, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.font = "26px system-ui";
+    ctx.fillStyle = "#000";
+    ctx.fillText(a.emoji, sx - 12, sy + 10);
+
+    ctx.font = "12px system-ui";
+    ctx.fillText("tap me", sx - 18, sy + 36);
+  }
+}
+
+function drawDog(){
+  const sx = dog.x - camera.x;
+  const sy = dog.y - camera.y;   // top of sprite
+
+  let key;
+  if(dog.state === "walk")      key = "dog_walk";
+  else if(dog.state === "eat")  key = "dog_eat";
+  else if(dog.state === "happy")key = "dog_paw";
+  else if(dog.state === "sleep")key = "dog_sleep";
+  else                          key = "dog_idle";
+
+  const img = images[key];
+
+  if(img){
+    let frames = 1;
+    if(key === "dog_walk") frames = DOG_WALK_FRAMES;
+
+    const fw = img.width / frames;
+    const fh = img.height;
+
+    // scale EVERY pose to the same height
+    const scale = DOG_TARGET_HEIGHT / fh;
+    const drawW = fw * scale;
+    const drawH = DOG_TARGET_HEIGHT;
+
+    let frameIndex = 0;
+    if(frames > 1){
+      frameIndex = Math.floor(dog.animTime / 6) % frames;
+    }
+
+    const flip = (dog.dir < 0);
+
+    ctx.save();
+    if(flip){
+      ctx.translate(sx + drawW, sy);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, frameIndex*fw, 0, fw, fh, 0, 0, drawW, drawH);
+    } else {
+      ctx.drawImage(img, frameIndex*fw, 0, fw, fh, sx, sy, drawW, drawH);
+    }
+    ctx.restore();
+  } else {
+    ctx.fillStyle = "#a97142";
+    ctx.fillRect(sx, sy, dog.w, dog.h);
+  }
+}
+
+function drawMinimap(){
+  const w = 220, h = 70;
+  const x = window.innerWidth - w - 14;
+  const y = window.innerHeight - h - 14;
+
+  ctx.fillStyle = "rgba(255,255,255,0.85)";
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = "rgba(0,0,0,0.2)";
+  ctx.strokeRect(x, y, w, h);
+
+  ctx.fillStyle = "rgba(0,0,0,0.12)";
+  ctx.fillRect(x+10, y+34, w-20, 6);
+
+  for(const p of parks){
+    const px = x + 10 + (p.x / WORLD_W) * (w-20);
+    ctx.fillStyle = discovered.has(p.id) ? "rgba(0,0,0,0.7)" : "rgba(0,0,0,0.25)";
+    ctx.beginPath();
+    ctx.arc(px, y+37, 4, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  const dx = x + 10 + (dog.x / WORLD_W) * (w-20);
+  ctx.fillStyle = "rgba(255,183,3,1)";
+  ctx.beginPath();
+  ctx.arc(dx, y+37, 5, 0, Math.PI*2);
+  ctx.fill();
+
+  ctx.font = "12px system-ui";
+  ctx.fillStyle = "#000";
+  ctx.fillText("Mini-map", x+10, y+16);
+}
+
+function drawFlash(){
+  if(travelFlash<=0) return;
+  ctx.fillStyle = `rgba(255,255,255,${travelFlash/18})`;
+  ctx.fillRect(0,0,window.innerWidth,window.innerHeight);
+}
+
+function draw(){
+  drawBackground();
+  drawLandmarks();
+  drawAnimals();
+  drawDog();
+  drawMinimap();
+  drawFlash();
+}
+
+// ---------- Main loop ----------
+function tick(){
+  update();
+  draw();
+  requestAnimationFrame(tick);
+}
+tick();
+
+// Intro: start him at Yosemite area
+toast("🐶 Welcome! Use Walk buttons (or arrow keys). Tap animals. Collect all 10 landmarks!");
+</script>
 
 
 
