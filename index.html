@@ -307,7 +307,9 @@ rightBtn.onclick = ()=>{
 stopBtn.onclick  = ()=>{
   moveLeft = moveRight = false;
   dog.state = "idle";
+  dog.y = PATH_Y - 160; // keep dog at correct height even when stopped
 };
+
 petBtn.onclick   = ()=>setDogMood("happy", 140, "❤️ Your dog feels loved!");
 feedBtn.onclick  = ()=>{
   setDogMood("eat", 160, "🍖 Yum! Happy dog energy!");
