@@ -206,26 +206,50 @@ function centerCameraOn(wx,wy){
 }
 
 // ---------- Assets ----------
-const ASSET_BASE       = "assets/"; // <<--- matches your repo
-const DOG_WALK_FRAMES  = 5;         // your strip has 5 dogs
-const DOG_SPRITE_SCALE = 0.9;
+const DOG_WALK_FRAMES  = 5;    // your strip has 5 dogs
+const DOG_SPRITE_SCALE = 0.7;  // smaller so he fits fully
+
+// try a few possible paths to assets so it works no matter where index.html lives
+const IMAGE_BASES = [
+  "assets/",
+  "./assets/",
+  "../assets/"
+];
 
 const images = {};
-function loadImage(key, src){
+
+function loadImageSmart(key, filename){
   return new Promise((resolve) => {
-    const img = new Image();
-    img.onload  = ()=>{ images[key]=img; resolve(true); };
-    img.onerror = ()=>{ console.warn("Missing image:", src); resolve(false); };
-    img.src = src;
+    let i = 0;
+    function attempt() {
+      if (i >= IMAGE_BASES.length) {
+        console.warn("❌ Failed to load", filename, "from any base");
+        resolve(false);
+        return;
+      }
+      const base = IMAGE_BASES[i++];
+      const img = new Image();
+      img.onload = () => {
+        images[key] = img;
+        console.log("✅ Loaded", key, "from", img.src);
+        resolve(true);
+      };
+      img.onerror = () => {
+        console.warn("⚠️ Could not load", base + filename, "— trying next base");
+        attempt();
+      };
+      img.src = base + filename;
+    }
+    attempt();
   });
 }
 
 (async function loadAssets(){
-  await loadImage("dog_idle",  ASSET_BASE + "dog_idle.png");
-  await loadImage("dog_walk",  ASSET_BASE + "dog_walk.png");
-  await loadImage("dog_eat",   ASSET_BASE + "dog_eat.png");
-  await loadImage("dog_paw",   ASSET_BASE + "dog_paw.png");
-  await loadImage("dog_sleep", ASSET_BASE + "dog_sleep.png");
+  await loadImageSmart("dog_idle",  "dog_idle.png");
+  await loadImageSmart("dog_walk",  "dog_walk.png");
+  await loadImageSmart("dog_eat",   "dog_eat.png");
+  await loadImageSmart("dog_paw",   "dog_paw.png");
+  await loadImageSmart("dog_sleep", "dog_sleep.png");
 })();
 
 // ---------- Parks ----------
@@ -247,7 +271,7 @@ const discovered = new Set();
 // ---------- Dog ----------
 const dog = {
   x: 240,
-  y: PATH_Y + 10,   // visible just under the signs
+  y: PATH_Y - 40,   // higher so whole dog is visible
   w: 84,
   h: 64,
   speed: 3.4,
@@ -401,7 +425,7 @@ function travelTo(park){
   moveLeft = moveRight = false;
 
   dog.x = clamp(park.x - 110, 0, WORLD_W - dog.w);
-  dog.y = PATH_Y + 10;
+  dog.y = PATH_Y - 40;
   dog.dir = 1;
 
   centerCameraOn(dog.x, dog.y);
@@ -420,7 +444,7 @@ function setDogMood(state, frames, message){
 function getParkAnimal(park){
   return {
     x: park.x + 120,
-    y: PATH_Y + 10,
+    y: PATH_Y - 40,
     r: 34,
     emoji: park.animal.emoji,
     message: park.animal.message
@@ -597,7 +621,6 @@ function drawDog(){
     }
     ctx.restore();
   } else {
-    // fallback block if image missing
     ctx.fillStyle = "#a97142";
     ctx.fillRect(sx, sy, dog.w, dog.h);
   }
