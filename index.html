@@ -66,169 +66,267 @@
 
 <script>
 /* =========================================================
-   FINAL DOG SIZE FIX — BIG DOG + SAME GROUND LEVEL
+   BIG DOG, SAME GROUND, 3 PARKS
    ========================================================= */
 
 const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-const msgEl = document.getElementById("msg");
+const ctx    = canvas.getContext("2d");
+const msgEl  = document.getElementById("msg");
 
 function resize(){
-  canvas.width = window.innerWidth;
+  canvas.width  = window.innerWidth;
   canvas.height = window.innerHeight;
 }
 window.addEventListener("resize", resize);
 resize();
 
-// 👉 This controls how big the dog is. Increase if needed.
-const DOG_HEIGHT = 1600;  // was 260 → try 420 (BIG). If still small → 500.
+// ---------- world + dog size ----------
+function groundY(){ return canvas.height - 120; }  // feet line
 
-const FRAME_RATE = 7;
-const IMG_PATH = "assets/";
+// This is our "reference" size. Increase if you still want bigger.
+const BASE_DOG_HEIGHT = 380;      // idle dog height
+const FRAME_RATE       = 6;
+const IMG_PATH         = "assets/";
 
+// Brutal extra zoom for poses that were tiny in the PNG
+const STATE_SCALE = {
+  idle:  1.2,   // nice and big
+  walk:  2.5,   // HUGE
+  eat:   2.0,   // big
+  paw:   2.0,   // big
+  sleep: 2.5    // HUGE
+};
+
+// 3 national parks along the screen
 const parks = [
-  { name:"Yosemite", pos:.25, subtitle:"Half Dome", visited:false },
-  { name:"Yellowstone", pos:.50, subtitle:"Old Faithful", visited:false },
-  { name:"Acadia", pos:.75, subtitle:"Cadillac Mountain", visited:false }
+  { name:"Yosemite",    subtitle:"Half Dome",         pos:0.25, visited:false },
+  { name:"Yellowstone", subtitle:"Old Faithful",      pos:0.50, visited:false },
+  { name:"Acadia",      subtitle:"Cadillac Mountain", pos:0.75, visited:false }
 ];
 
 // ---------- image loading ----------
 const art = {};
-function load(name){
+function load(key, filename){
   const img = new Image();
-  img.src = IMG_PATH + name + ".png";
-  art[name] = img;
+  img.src = IMG_PATH + filename;
+  art[key] = img;
 }
-load("dog_idle");
-load("dog_walk");
-load("dog_eat");
-load("dog_paw");
-load("dog_sleep");
 
-// ---------- DOG ----------
+load("idle",  "dog_idle.png");
+load("walk",  "dog_walk.png");   // 5-frame strip
+load("eat",   "dog_eat.png");
+load("paw",   "dog_paw.png");
+load("sleep", "dog_sleep.png");
+
+// ---------- dog ----------
 const dog = {
   x: canvas.width * 0.15,
   dir: 1,
-  speed: 8,
-  state: "idle",
+  speed: 7,
+  state: "idle",    // "idle","walk","eat","paw","sleep"
   frame: 0
 };
 
-function groundY(){
-  return canvas.height - 100; // 👈 FEET always here
+let left  = false;
+let right = false;
+
+// ---------- controls ----------
+const leftBtn  = document.getElementById("leftBtn");
+const rightBtn = document.getElementById("rightBtn");
+const stopBtn  = document.getElementById("stopBtn");
+const petBtn   = document.getElementById("petBtn");
+const feedBtn  = document.getElementById("feedBtn");
+
+function stopMoving(){
+  left = right = false;
+  dog.state = "idle";
 }
 
-// ---------- CONTROLS ----------
-const leftBtn=document.getElementById("leftBtn");
-const rightBtn=document.getElementById("rightBtn");
-const stopBtn=document.getElementById("stopBtn");
-const petBtn=document.getElementById("petBtn");
-const feedBtn=document.getElementById("feedBtn");
-
-leftBtn.onclick = ()=>{ dog.state="walk"; dog.dir=-1; };
-rightBtn.onclick= ()=>{ dog.state="walk"; dog.dir=1; };
-stopBtn.onclick = ()=>{ dog.state="idle"; };
-petBtn.onclick  = ()=>{ dog.state="paw"; showMsg("❤️ Petting"); };
-feedBtn.onclick = ()=>{ dog.state="eat"; showMsg("🍖 Feeding"); };
-
-window.onkeydown = (e)=>{
-  if(e.key==="ArrowLeft") leftBtn.onclick();
-  if(e.key==="ArrowRight") rightBtn.onclick();
-  if(e.key===" ") stopBtn.onclick();
+leftBtn.onclick = function(){
+  left  = true;
+  right = false;
+  dog.dir = -1;
+  dog.state = "walk";
 };
 
-// ---------- MESSAGE ----------
+rightBtn.onclick = function(){
+  right = true;
+  left  = false;
+  dog.dir = 1;
+  dog.state = "walk";
+};
+
+stopBtn.onclick = stopMoving;
+
+petBtn.onclick = function(){
+  stopMoving();
+  dog.state = "paw";
+  showMsg("Your dog loves pets ❤️");
+};
+
+feedBtn.onclick = function(){
+  stopMoving();
+  dog.state = "eat";
+  showMsg("Yum! Snack time 🍖");
+};
+
+window.addEventListener("keydown", function(e){
+  if(e.key === "ArrowLeft")  leftBtn.onclick();
+  if(e.key === "ArrowRight") rightBtn.onclick();
+  if(e.key === " ")          stopBtn.onclick();
+});
+
+// ---------- messages ----------
 let msgTimer = 0;
-function showMsg(txt){
-  msgEl.textContent = txt;
-  msgTimer = 90;
+function showMsg(text){
+  msgEl.textContent = text;
+  msgTimer = 150;
 }
 
-// ---------- UPDATE ----------
+// ---------- update ----------
 function update(){
-  if(dog.state==="walk"){
-    dog.x += dog.dir * dog.speed;
+  // basic walking
+  if(dog.state === "walk"){
+    if(left)  dog.x -= dog.speed;
+    if(right) dog.x += dog.speed;
   }
-  dog.x = Math.max(50, Math.min(canvas.width-50, dog.x));
 
-  parks.forEach(p=>{
+  // keep on screen
+  dog.x = Math.max(60, Math.min(canvas.width - 60, dog.x));
+
+  // park stopping
+  const dogCenter = dog.x;
+  for(const p of parks){
     const px = p.pos * canvas.width;
-    if(!p.visited && Math.abs(dog.x - px) < 40 && dog.state==="walk"){
-      dog.state="idle"; p.visited=true;
-      showMsg("📍 "+p.name+" — "+p.subtitle);
+    if(!p.visited && Math.abs(dogCenter - px) < 45 && dog.state === "walk"){
+      stopMoving();
+      p.visited = true;
+      showMsg("You arrived at " + p.name + " — " + p.subtitle + "!");
     }
-  });
+  }
 
-  if(msgTimer>0){ msgTimer--; if(msgTimer===0) msgEl.textContent=""; }
+  // message timeout
+  if(msgTimer > 0){
+    msgTimer--;
+    if(msgTimer === 0){
+      msgEl.textContent = "Walk to visit the 3 national parks!";
+    }
+  }
 
   dog.frame++;
 }
 
-// ---------- DRAW ----------
-function draw(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
+// ---------- draw helpers ----------
+function drawBackground(){
+  ctx.fillStyle = "#bde0fe";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // background
-  ctx.fillStyle="#bde0fe"; ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle="#90e0ef"; ctx.fillRect(0,groundY(),canvas.width,200);
+  const gy = groundY();
+  ctx.fillStyle = "#90e0ef";
+  ctx.fillRect(0, gy, canvas.width, canvas.height - gy);
+}
 
-  // signs
-  ctx.fillStyle="black";
-  parks.forEach(p=>{
-    const x=p.pos*canvas.width;
-    ctx.fillRect(x-2,groundY()-90,4,90);
-    ctx.fillStyle="white"; ctx.fillRect(x-70,groundY()-120,140,30);
-    ctx.fillStyle="black"; ctx.fillText(p.name, x-50, groundY()-100);
-  });
+function drawParks(){
+  const gy = groundY();
+  ctx.textBaseline = "middle";
 
-  // dog sprite
-  const state = dog.state;
-  let img = art.dog_idle;
-  let frames = 1;
-  if(state==="walk"){ img=art.dog_walk; frames=5; }
-  if(state==="eat") img=art.dog_eat;
-  if(state==="paw") img=art.dog_paw;
-  if(state==="sleep")img=art.dog_sleep;
+  for(const p of parks){
+    const x = p.pos * canvas.width;
+    const signTop = gy - 120;
 
-  if(img.complete){
-    // override size so walk is not tiny
-let fw = img.width / frames;
-let fh = img.height;
+    // pole
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.fillRect(x - 3, signTop + 20, 6, 100);
 
-// FORCE equal baseline size so small PNGs get BIG
-if(fh < 800) fh = 800;
-if(fw < 800) fw = 800;
+    // sign
+    ctx.fillStyle = "rgba(255,255,255,0.96)";
+    ctx.fillRect(x - 90, signTop, 180, 44);
 
-const scale = DOG_HEIGHT / fh;
+    ctx.fillStyle = "#000";
+    ctx.font = "15px system-ui";
+    ctx.fillText(p.name, x - 80, signTop + 14);
+    ctx.font = "12px system-ui";
+    ctx.fillText(p.subtitle, x - 80, signTop + 30);
 
-    const drawW = fw*scale;
-    const drawH = fh*scale;
-    const frame = frames>1 ? Math.floor(dog.frame/FRAME_RATE)%frames : 0;
-    const sx = frame*fw;
-    const dx = dog.x - drawW/2;
-    const dy = groundY() - drawH;
-
-    ctx.save();
-    if(dog.dir<0){
-      ctx.scale(-1,1);
-      ctx.drawImage(img, sx,0,fw,fh, -dx-drawW,dy, drawW,drawH);
-    } else {
-      ctx.drawImage(img, sx,0,fw,fh, dx,dy, drawW,drawH);
-    }
-    ctx.restore();
+    // visited dot
+    ctx.fillStyle = p.visited ? "#2a9d8f" : "#e76f51";
+    ctx.beginPath();
+    ctx.arc(x + 70, signTop + 22, 7, 0, Math.PI*2);
+    ctx.fill();
   }
 }
 
-// ---------- LOOP ----------
+// ---------- draw dog (all big, same ground) ----------
+function drawDog(){
+  let state = dog.state;
+  if(!STATE_SCALE[state]) state = "idle";
+
+  let img = art.idle;
+  let frames = 1;
+
+  if(state === "walk"){
+    img    = art.walk || art.idle;
+    frames = 5;   // we expect 5-frame walk strip
+  } else if(state === "eat"){
+    img = art.eat || art.idle;
+  } else if(state === "paw"){
+    img = art.paw || art.idle;
+  } else if(state === "sleep"){
+    img = art.sleep || art.idle;
+  }
+
+  if(!img || !img.complete) return;
+
+  let fw = img.width / frames;
+  let fh = img.height;
+
+  // Base scale: make entire image about BASE_DOG_HEIGHT tall
+  let baseScale = BASE_DOG_HEIGHT / fh;
+
+  // If the PNG is very small (lots of empty space), force bigger
+  if(fh < 400) baseScale *= 2.5;  // brute force zoom for tiny art
+  if(fh < 250) baseScale *= 3.5;
+
+  const extraScale = STATE_SCALE[state] || 1.0;
+  const scale      = baseScale * extraScale;
+
+  const drawW = fw * scale;
+  const drawH = fh * scale;
+
+  // animate walk frames
+  let frameIndex = 0;
+  if(frames > 1 && state === "walk"){
+    frameIndex = Math.floor(dog.frame / FRAME_RATE) % frames;
+  }
+  const sx = frameIndex * fw;
+
+  // feet stay on ground line
+  const gx = dog.x;
+  const gy = groundY();
+  const dx = gx - drawW / 2;
+  const dy = gy - drawH;
+
+  ctx.save();
+  if(dog.dir < 0){
+    ctx.scale(-1,1);
+    ctx.drawImage(img, sx,0, fw,fh, -dx - drawW, dy, drawW, drawH);
+  } else {
+    ctx.drawImage(img, sx,0, fw,fh, dx, dy, drawW, drawH);
+  }
+  ctx.restore();
+}
+
+// ---------- main loop ----------
 function loop(){
   update();
-  draw();
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawBackground();
+  drawParks();
+  drawDog();
   requestAnimationFrame(loop);
 }
 loop();
 </script>
-
-
 
 </body>
 </html>
