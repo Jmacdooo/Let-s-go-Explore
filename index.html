@@ -191,9 +191,16 @@ function draw(){
   if(state==="sleep")img=art.dog_sleep;
 
   if(img.complete){
-    const fw = img.width/frames;
-    const fh = img.height;
-    const scale = DOG_HEIGHT/fh;
+    // override size so walk is not tiny
+let fw = img.width / frames;
+let fh = img.height;
+
+// FORCE equal baseline size so small PNGs get BIG
+if(fh < 800) fh = 800;
+if(fw < 800) fw = 800;
+
+const scale = DOG_HEIGHT / fh;
+
     const drawW = fw*scale;
     const drawH = fh*scale;
     const frame = frames>1 ? Math.floor(dog.frame/FRAME_RATE)%frames : 0;
