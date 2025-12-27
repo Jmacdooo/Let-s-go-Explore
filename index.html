@@ -1,182 +1,7 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>My Forever Dog — National Parks Road Trip</title>
-<style>
-  :root { --panel: rgba(255,255,255,.90); --shadow: 0 10px 30px rgba(0,0,0,.15); }
-  body { margin:0; overflow:hidden; background:#dff2ff; font-family: system-ui, -apple-system, Segoe UI, Arial, sans-serif; }
-  canvas { display:block; width:100vw; height:100vh; }
-
-  /* Top Left Controls */
-  #topbar {
-    position: fixed; left: 12px; top: 12px;
-    display:flex; gap:10px; align-items:center; flex-wrap:wrap;
-    background: var(--panel);
-    padding:10px 12px; border-radius:14px; box-shadow: var(--shadow);
-    z-index: 10;
-  }
-  .btn {
-    padding:10px 12px; border-radius:12px; border:none; cursor:pointer;
-    background:#ffb703; font-weight:700;
-  }
-  .btn.secondary { background:#90e0ef; }
-  .btn.ghost { background:#eee; }
-  .btn:active { transform: translateY(1px); }
-
-  /* Right HUD */
-  #hud {
-    position: fixed; right: 12px; top: 12px;
-    width: 320px; max-width: calc(100vw - 24px);
-    background: var(--panel); padding: 12px; border-radius: 14px; box-shadow: var(--shadow);
-    z-index: 10;
-  }
-  #hud h3 { margin:0 0 6px 0; font-size: 16px; }
-  #hud small { color:#333; }
-  #progress { margin-top: 8px; font-size: 13px; line-height: 1.35; max-height: 210px; overflow:auto; }
-
-  /* Bottom Toast */
-  #toast {
-    position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
-    background: rgba(255,255,255,.92);
-    padding: 10px 14px; border-radius: 14px; box-shadow: var(--shadow);
-    font-weight: 700;
-    opacity: 0; transition: opacity .2s ease;
-    z-index: 10;
-    max-width: calc(100vw - 28px);
-    white-space: nowrap; overflow:hidden; text-overflow: ellipsis;
-  }
-  #toast.show { opacity: 1; }
-
-  /* Panels */
-  .panelOverlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,.35);
-    display:none; align-items:center; justify-content:center;
-    z-index: 20;
-    padding: 14px;
-  }
-  .panelOverlay.show { display:flex; }
-  .panel {
-    width: min(980px, 100%);
-    background: rgba(255,255,255,.95);
-    border-radius: 18px;
-    box-shadow: var(--shadow);
-    overflow:hidden;
-  }
-  .panelHeader {
-    display:flex; align-items:center; justify-content:space-between;
-    padding: 12px 14px;
-    background: #f6f7fb;
-    border-bottom: 1px solid rgba(0,0,0,.08);
-  }
-  .panelHeader h2 { margin:0; font-size: 18px; }
-  .panelBody { padding: 12px 14px; }
-
-  /* Map grid */
-  .grid {
-    display:grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 12px;
-  }
-  .card {
-    background: #fff;
-    border-radius: 16px;
-    overflow:hidden;
-    box-shadow: 0 10px 25px rgba(0,0,0,.10);
-    cursor:pointer;
-    border: 2px solid transparent;
-  }
-  .card:hover { border-color: rgba(0,0,0,.08); }
-  .thumb {
-    height: 110px;
-    background: linear-gradient(135deg, rgba(144,224,239,.9), rgba(255,183,3,.35));
-    display:flex; align-items:center; justify-content:center;
-    font-size: 32px;
-  }
-  .meta { padding: 10px 12px; }
-  .meta b { display:block; font-size: 14px; }
-  .meta span { font-size: 12px; color:#333; }
-  .badge { display:inline-flex; gap:6px; align-items:center; margin-top:6px; font-size: 12px; }
-  .pill { padding: 4px 8px; background:#f2f2f2; border-radius: 999px; font-weight:700; }
-
-  /* Passport */
-  .passportGrid {
-    display:grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 10px;
-  }
-  .stamp {
-    border-radius: 14px;
-    padding: 10px 12px;
-    background: #fff;
-    box-shadow: 0 8px 20px rgba(0,0,0,.08);
-    border: 2px dashed rgba(0,0,0,.15);
-  }
-  .stamp .row { display:flex; justify-content:space-between; align-items:center; }
-  .stamp b { font-size: 13px; }
-  .stamp small { color:#333; }
-  .stamp .big { font-size: 22px; margin-top: 6px; }
-
-  /* Mobile */
-  @media (max-width: 520px) {
-    #hud { width: 280px; }
-    .btn { padding: 10px 10px; }
-  }
-</style>
-</head>
-<body>
-
-<canvas id="game"></canvas>
-
-<div id="topbar">
-  <button class="btn" id="leftBtn">⬅ Walk</button>
-  <button class="btn ghost" id="stopBtn">⏸ Stop</button>
-  <button class="btn" id="rightBtn">Walk ➡</button>
-  <button class="btn secondary" id="petBtn">❤️ Pet</button>
-  <button class="btn secondary" id="feedBtn">🍖 Feed</button>
-  <button class="btn" id="mapBtn">🗺 Park Map</button>
-  <button class="btn" id="passportBtn">📘 Passport</button>
-</div>
-
-<div id="hud">
-  <h3>Road Trip Progress: <span id="count">0</span>/10</h3>
-  <small>Walk to landmarks or use the map to travel.</small>
-  <div id="progress"></div>
-</div>
-
-<div id="toast"></div>
-
-<!-- Map Panel -->
-<div class="panelOverlay" id="mapOverlay">
-  <div class="panel">
-    <div class="panelHeader">
-      <h2>🗺 National Parks Map</h2>
-      <button class="btn ghost" id="closeMapBtn">Close</button>
-    </div>
-    <div class="panelBody">
-      <div class="grid" id="mapGrid"></div>
-    </div>
-  </div>
-</div>
-
-<!-- Passport Panel -->
-<div class="panelOverlay" id="passportOverlay">
-  <div class="panel">
-    <div class="panelHeader">
-      <h2>📘 Road Trip Passport</h2>
-      <button class="btn ghost" id="closePassportBtn">Close</button>
-    </div>
-    <div class="panelBody">
-      <div class="passportGrid" id="passportGrid"></div>
-    </div>
-  </div>
-</div>
-
 <script>
 /* ============================================
    MY FOREVER DOG — NATIONAL PARKS ROAD TRIP
-   Clean version with walk-strip crop
+   All sprites = 5 frames, same size, flat path
    ============================================ */
 
 // ---------- Canvas ----------
@@ -199,14 +24,19 @@ const dist  = (x1,y1,x2,y2)=>Math.hypot(x1-x2,y1-y2);
 const WORLD_W = 5200;
 const WORLD_H = 1400;
 
-// signs row & ground line
-const PATH_Y            = 760;   // labels
-const DOG_GROUND_Y      = 960;   // paws on the ground
-const DOG_TARGET_HEIGHT = 420;   // on-screen dog height (all poses)
+// where things sit
+const PATH_Y            = 760;   // sign row
+const DOG_GROUND_Y      = 960;   // paws line
+const DOG_TARGET_HEIGHT = 420;   // final height of dog on screen
 
-// walk-strip crop: we only use the bottom part of dog_walk.png
-const DOG_WALK_FRAMES   = 5;
-const WALK_SRC_FRACTION = 0.45;  // bottom 45% of sprite (adjust if needed)
+// every sprite strip has 5 frames
+const FRAMES = {
+  idle: 5,
+  walk: 5,
+  paw:  5,
+  eat:  5,
+  sleep:5
+};
 
 const camera = { x:0, y:0 };
 function centerCameraOn(wx, wy){
@@ -239,8 +69,8 @@ function loadImageSmart(key,file){
 (async function loadAssets(){
   await loadImageSmart("idle",  "dog_idle.png");
   await loadImageSmart("walk",  "dog_walk.png");
-  await loadImageSmart("eat",   "dog_eat.png");
   await loadImageSmart("paw",   "dog_paw.png");
+  await loadImageSmart("eat",   "dog_eat.png");
   await loadImageSmart("sleep", "dog_sleep.png");
 })();
 
@@ -262,9 +92,9 @@ const visited = new Set();
 
 // ---------- Dog ----------
 const dog = {
-  x: 320,
-  y: DOG_GROUND_Y,    // paws line
-  dir: 1,             // 1 right, -1 left
+  x: parks[0].x,
+  y: DOG_GROUND_Y,    // paws position
+  dir: 1,             // 1 = right, -1 = left
   speed: 3.8,
   moving: false,
   mood: null,         // null | "paw" | "eat" | "sleep"
@@ -275,10 +105,10 @@ const dog = {
 let moveLeft  = false;
 let moveRight = false;
 let autoWalk  = false;
-let autoTargetX = null;
-let autoTargetPark = null;
+let autoTargetX   = null;
+let autoTargetPark= null;
 
-// ---------- UI Elements ----------
+// ---------- UI ----------
 const leftBtn     = document.getElementById("leftBtn");
 const rightBtn    = document.getElementById("rightBtn");
 const stopBtn     = document.getElementById("stopBtn");
@@ -303,7 +133,7 @@ function showToast(msg){
 }
 
 function setDogMood(name, frames, msg){
-  dog.mood = name;
+  dog.mood = name;          // "paw" | "eat" | "sleep"
   dog.moodTimer = frames;
   if(msg) showToast(msg);
 }
@@ -317,7 +147,7 @@ function stopAllMovement(){
   dog.moving = false;
 }
 
-// ---------- Button controls ----------
+// ---------- Buttons ----------
 leftBtn.onclick = ()=>{
   stopAllMovement();
   moveLeft = true;
@@ -379,7 +209,7 @@ function updateHUD(){
 }
 updateHUD();
 
-// ---------- Map / Passport builders ----------
+// ---------- Map / Passport ----------
 function buildMap(){
   const grid = document.getElementById("mapGrid");
   grid.innerHTML = "";
@@ -423,7 +253,7 @@ function buildPassport(){
   });
 }
 
-// ---------- Travel (auto-walk) ----------
+// ---------- Travel (auto-walk along path) ----------
 function travelTo(park){
   stopAllMovement();
   autoWalk = true;
@@ -434,7 +264,7 @@ function travelTo(park){
   showToast(`🧳 Walking to ${park.name}...`);
 }
 
-// ---------- Animals (tap circles) ----------
+// ---------- Animals ----------
 const animals = parks.map(p=>({
   x: p.x + 120,
   y: PATH_Y - 40,
@@ -463,9 +293,9 @@ canvas.addEventListener("pointerdown", e=>{
 function checkDiscovery(){
   for(const p of parks){
     if(visited.has(p.id)) continue;
-    const dogCenterX = dog.x;
-    const dogCenterY = dog.y - DOG_TARGET_HEIGHT/2;
-    const d = dist(dogCenterX, dogCenterY, p.x, p.y);
+    const dogCx = dog.x;
+    const dogCy = dog.y - DOG_TARGET_HEIGHT/2;
+    const d = dist(dogCx, dogCy, p.x, p.y);
     if(d < 140){
       visited.add(p.id);
       updateHUD();
@@ -502,13 +332,13 @@ function update(){
   }
 
   dog.x = clamp(dog.x, 0, WORLD_W - 200);
-  dog.y = DOG_GROUND_Y;   // always same ground line
+  dog.y = DOG_GROUND_Y;  // paws always here
 
   // mood timer
   if(dog.moodTimer > 0){
     dog.moodTimer--;
     if(dog.moodTimer === 0){
-      dog.mood = null;    // back to idle/walk
+      dog.mood = null;   // back to idle/walk art
     }
   }
 
@@ -568,76 +398,56 @@ function drawAnimals(){
   }
 }
 
-// 🔥 THIS is the important bit: crop the walk sprite bottom and scale all poses the same
+// --------- DRAW DOG (all 5-frame strips, same size) ----------
 function drawDog(){
   const sxGround = dog.x - camera.x;   // paws x
   const syGround = dog.y - camera.y;   // paws y
 
-  // choose sprite
-  let key;
+  // 1) pick STATE (mood wins)
+  let stateKey;
   if(dog.mood){
-    key = dog.mood;               // "paw", "eat", "sleep"
+    stateKey = dog.mood;              // "paw" | "eat" | "sleep"
   } else {
-    key = dog.moving ? "walk" : "idle";
+    stateKey = dog.moving ? "walk" : "idle";
   }
 
-  const img = images[key];
+  // 2) sprite key is same as state (each has its own PNG)
+  const spriteKey = stateKey;
+  const img = images[spriteKey];
   if(!img){
     ctx.fillStyle = "brown";
     ctx.fillRect(sxGround - 80, syGround - DOG_TARGET_HEIGHT, 160, DOG_TARGET_HEIGHT);
     return;
   }
 
-  const isWalk = (key === "walk");
-  const frames = isWalk ? DOG_WALK_FRAMES : 1;
-  const fw = img.width / frames;
+  // 3) animation frames
+  const frames = FRAMES[spriteKey] || 1;
+  const fw = img.width  / frames;
   const fh = img.height;
 
-  // crop source rect: full image for idle/mood, bottom part for walk
-  let srcY, srcH;
-  if(isWalk){
-    srcH = fh * WALK_SRC_FRACTION;
-    srcY = fh - srcH;
-  } else {
-    srcY = 0;
-    srcH = fh;
-  }
-
-  // scale so visible part is DOG_TARGET_HEIGHT tall
-  const scale = DOG_TARGET_HEIGHT / srcH;
+  // 4) scale EVERY pose so height == DOG_TARGET_HEIGHT
+  const scale = DOG_TARGET_HEIGHT / fh;
   const drawW = fw * scale;
   const drawH = DOG_TARGET_HEIGHT;
 
-  // pick frame
+  // 5) choose frame
   let frameIndex = 0;
   if(frames > 1){
     frameIndex = Math.floor(dog.animTime / 6) % frames;
   }
 
-  const flip = (dog.dir < 0);
+  const flip  = (dog.dir < 0);
   const drawX = sxGround - drawW / 2;
-  const drawY = syGround - drawH;   // paws on ground
+  const drawY = syGround - drawH;     // paws stay on ground
 
   ctx.save();
   if(flip){
     ctx.translate(drawX + drawW, drawY);
     ctx.scale(-1,1);
-    ctx.drawImage(
-      img,
-      frameIndex*fw, srcY,
-      fw, srcH,
-      0, 0,
-      drawW, drawH
-    );
+    ctx.drawImage(img, frameIndex*fw, 0, fw, fh, 0, 0, drawW, drawH);
   } else {
     ctx.translate(drawX, drawY);
-    ctx.drawImage(
-      img,
-      frameIndex*fw, srcY,
-      fw, srcH,
-      0, 0,
-      drawW, drawH
-    );
+    ctx.drawImage(img, frameIndex*fw, 0, fw, fh, 0, 0, drawW, drawH);
   }
   ctx.restore();
 }
@@ -649,7 +459,7 @@ function draw(){
   drawDog();
 }
 
-// ---------- Main loop ----------
+// ---------- Main Loop ----------
 function tick(){
   update();
   draw();
@@ -657,15 +467,5 @@ function tick(){
 }
 tick();
 
-showToast("🐶 Big dog, same size every pose. Walk strip fixed!");
+showToast("🐶 All poses: 5 frames, same size, flat path!");
 </script>
-
-
-
-
-
-
-
-
-</body>
-</html>
