@@ -443,8 +443,10 @@ function travelTo(park){
 function setDogMood(state, frames, message){
   dog.state = state;
   dog.timer = frames;
+  dog.y = PATH_Y - 160; // always keep him at correct height for ALL moods
   if(message) toast(message);
 }
+
 
 // ---------- Animals ----------
 function getParkAnimal(park){
