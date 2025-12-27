@@ -309,7 +309,11 @@ stopBtn.onclick  = ()=>{
   dog.state = "idle";
 };
 petBtn.onclick   = ()=>setDogMood("happy", 140, "❤️ Your dog feels loved!");
-feedBtn.onclick  = ()=>setDogMood("eat",   160, "🍖 Yum! Happy dog energy!");
+feedBtn.onclick  = ()=>{
+  setDogMood("eat", 160, "🍖 Yum! Happy dog energy!");
+  dog.y = PATH_Y - 160;  // keep him up high during feed
+};
+
 
 window.addEventListener("keydown",(e)=>{
   if(e.key==="ArrowLeft")  leftBtn.onclick();
