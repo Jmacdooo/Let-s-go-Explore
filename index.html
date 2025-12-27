@@ -176,7 +176,7 @@
 <script>
 /* ============================================
    MY FOREVER DOG — NATIONAL PARKS ROAD TRIP
-   Option A: Same-size dog, flat path, idle when stopped
+   Clean version with walk-strip crop
    ============================================ */
 
 // ---------- Canvas ----------
@@ -196,14 +196,17 @@ const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
 const dist  = (x1,y1,x2,y2)=>Math.hypot(x1-x2,y1-y2);
 
 // ---------- World Layout ----------
-// Tweak these 3 to change layout/size:
-const PATH_Y            = 740;   // where signs/park labels sit
-const DOG_GROUND_Y      = 960;   // paws line (ground)
-const DOG_TARGET_HEIGHT = 420;   // dog height ON SCREEN (all poses)
-
-// World size
 const WORLD_W = 5200;
 const WORLD_H = 1400;
+
+// signs row & ground line
+const PATH_Y            = 760;   // labels
+const DOG_GROUND_Y      = 960;   // paws on the ground
+const DOG_TARGET_HEIGHT = 420;   // on-screen dog height (all poses)
+
+// walk-strip crop: we only use the bottom part of dog_walk.png
+const DOG_WALK_FRAMES   = 5;
+const WALK_SRC_FRACTION = 0.45;  // bottom 45% of sprite (adjust if needed)
 
 const camera = { x:0, y:0 };
 function centerCameraOn(wx, wy){
@@ -212,25 +215,24 @@ function centerCameraOn(wx, wy){
 }
 
 // ---------- Assets ----------
-const DOG_WALK_FRAMES = 5;
 const images = {};
-const BASES = ["assets/","./assets/","../assets/"];
+const IMAGE_BASES = ["assets/","./assets/","../assets/"];
 
-function loadImageSmart(key, file){
+function loadImageSmart(key,file){
   return new Promise(resolve=>{
     let i = 0;
-    function tryNext(){
-      if(i >= BASES.length){
+    function attempt(){
+      if(i >= IMAGE_BASES.length){
         console.warn("❌ Could not load", file);
         resolve(false);
         return;
       }
       const img = new Image();
-      img.onload = ()=>{ images[key] = img; resolve(true); };
-      img.onerror = tryNext;
-      img.src = BASES[i++] + file;
+      img.onload  = ()=>{ images[key] = img; resolve(true); };
+      img.onerror = attempt;
+      img.src = IMAGE_BASES[i++] + file;
     }
-    tryNext();
+    attempt();
   });
 }
 
@@ -244,28 +246,28 @@ function loadImageSmart(key, file){
 
 // ---------- Parks ----------
 const parks = [
-  { id:"yosemite",    name:"Yosemite",      subtitle:"Half Dome",                  emoji:"⛰️", x: 320,  y: PATH_Y, animal:{ emoji:"🐻", message:"A bear sniffs the air… your dog stays calm. Good pup!" } },
-  { id:"grandcanyon", name:"Grand Canyon",  subtitle:"South Rim View",             emoji:"🧡", x: 820,  y: PATH_Y, animal:{ emoji:"🦅", message:"A condor glides overhead. Your dog looks up like: wow!" } },
-  { id:"zion",        name:"Zion",          subtitle:"Angels Landing",             emoji:"🪨", x: 1320, y: PATH_Y, animal:{ emoji:"🦏", message:"A bighorn sheep poses for a photo. Your dog wags politely." } },
-  { id:"arches",      name:"Arches",        subtitle:"Delicate Arch",              emoji:"🌅", x: 1820, y: PATH_Y, animal:{ emoji:"🦊", message:"A fox darts by! Your dog freezes… then smiles." } },
-  { id:"yellowstone", name:"Yellowstone",   subtitle:"Old Faithful",               emoji:"💦", x: 2320, y: PATH_Y, animal:{ emoji:"🦬", message:"A bison is nearby. Your dog keeps a respectful distance. Smart!" } },
-  { id:"tetons",      name:"Grand Teton",   subtitle:"Teton Range",                emoji:"🏔️", x: 2820, y: PATH_Y, animal:{ emoji:"🫎", message:"A moose munches leaves. Your dog is amazed (and quiet)." } },
-  { id:"glacier",     name:"Glacier",       subtitle:"Going-to-the-Sun Road",      emoji:"❄️", x: 3320, y: PATH_Y, animal:{ emoji:"🐐", message:"A mountain goat climbs like a superhero." } },
-  { id:"rockymtn",    name:"Rocky Mountain",subtitle:"Trail Ridge Road",           emoji:"🌲", x: 3820, y: PATH_Y, animal:{ emoji:"🦌", message:"An elk bugles! Your dog tilts head: ‘What was THAT?’" } },
-  { id:"acadia",      name:"Acadia",        subtitle:"Cadillac Mountain",          emoji:"🌊", x: 4320, y: PATH_Y, animal:{ emoji:"🦭", message:"A seal pops up and splashes. Your dog is delighted." } },
-  { id:"everglades",  name:"Everglades",    subtitle:"Alligator Alley",            emoji:"🐊", x: 4820, y: PATH_Y, animal:{ emoji:"🐊", message:"You spot an alligator (from far away!). Your dog stays safe." } },
+  { id:"yosemite",    name:"Yosemite",      subtitle:"Half Dome",             emoji:"⛰️", x: 320,  y: PATH_Y, animal:{ emoji:"🐻", message:"A bear sniffs the air… your dog stays calm. Good pup!" } },
+  { id:"grandcanyon", name:"Grand Canyon",  subtitle:"South Rim View",        emoji:"🧡", x: 820,  y: PATH_Y, animal:{ emoji:"🦅", message:"A condor glides overhead. Your dog looks up like: wow!" } },
+  { id:"zion",        name:"Zion",          subtitle:"Angels Landing",        emoji:"🪨", x: 1320, y: PATH_Y, animal:{ emoji:"🦏", message:"A bighorn sheep poses for a photo. Your dog wags politely." } },
+  { id:"arches",      name:"Arches",        subtitle:"Delicate Arch",         emoji:"🌅", x: 1820, y: PATH_Y, animal:{ emoji:"🦊", message:"A fox darts by! Your dog freezes… then smiles." } },
+  { id:"yellowstone", name:"Yellowstone",   subtitle:"Old Faithful",          emoji:"💦", x: 2320, y: PATH_Y, animal:{ emoji:"🦬", message:"A bison is nearby. Your dog keeps a respectful distance. Smart!" } },
+  { id:"tetons",      name:"Grand Teton",   subtitle:"Teton Range",           emoji:"🏔️", x: 2820, y: PATH_Y, animal:{ emoji:"🫎", message:"A moose munches leaves. Your dog is amazed (and quiet)." } },
+  { id:"glacier",     name:"Glacier",       subtitle:"Going-to-the-Sun Road", emoji:"❄️", x: 3320, y: PATH_Y, animal:{ emoji:"🐐", message:"A mountain goat climbs like a superhero." } },
+  { id:"rockymtn",    name:"Rocky Mountain",subtitle:"Trail Ridge Road",      emoji:"🌲", x: 3820, y: PATH_Y, animal:{ emoji:"🦌", message:"An elk bugles! Your dog tilts head: ‘What was THAT?’" } },
+  { id:"acadia",      name:"Acadia",        subtitle:"Cadillac Mountain",     emoji:"🌊", x: 4320, y: PATH_Y, animal:{ emoji:"🦭", message:"A seal pops up and splashes. Your dog is delighted." } },
+  { id:"everglades",  name:"Everglades",    subtitle:"Alligator Alley",       emoji:"🐊", x: 4820, y: PATH_Y, animal:{ emoji:"🐊", message:"You spot an alligator (from far away!). Your dog stays safe." } },
 ];
 
 const visited = new Set();
 
-// ---------- Dog (paws anchored to ground line) ----------
+// ---------- Dog ----------
 const dog = {
-  x: 240,              // horizontal center of the dog
-  y: DOG_GROUND_Y,     // paws position (on ground line)
-  dir: 1,              // 1 = right, -1 = left
+  x: 320,
+  y: DOG_GROUND_Y,    // paws line
+  dir: 1,             // 1 right, -1 left
   speed: 3.8,
-  moving: false,       // walking or not
-  mood: null,          // null | "paw" | "eat" | "sleep"
+  moving: false,
+  mood: null,         // null | "paw" | "eat" | "sleep"
   moodTimer: 0,
   animTime: 0
 };
@@ -293,7 +295,20 @@ const progressEl      = document.getElementById("progress");
 
 let toastTime = 0;
 
-// ---------- Helpers: movement + mood ----------
+// ---------- Toast / Mood ----------
+function showToast(msg){
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  toastTime = 200;
+}
+
+function setDogMood(name, frames, msg){
+  dog.mood = name;
+  dog.moodTimer = frames;
+  if(msg) showToast(msg);
+}
+
+// ---------- Movement helpers ----------
 function stopAllMovement(){
   moveLeft = moveRight = false;
   autoWalk = false;
@@ -302,19 +317,7 @@ function stopAllMovement(){
   dog.moving = false;
 }
 
-function showToast(msg){
-  toastEl.textContent = msg;
-  toastEl.classList.add("show");
-  toastTime = 200;
-}
-
-function setDogMood(moodName, frames, message){
-  dog.mood = moodName;       // "paw", "eat", "sleep"
-  dog.moodTimer = frames;
-  if(message) showToast(message);
-}
-
-// ---------- Controls ----------
+// ---------- Button controls ----------
 leftBtn.onclick = ()=>{
   stopAllMovement();
   moveLeft = true;
@@ -329,10 +332,7 @@ rightBtn.onclick = ()=>{
   dog.moving = true;
 };
 
-stopBtn.onclick = ()=>{
-  stopAllMovement();
-  // when not moving and no mood → idle dog shows
-};
+stopBtn.onclick = ()=> stopAllMovement();
 
 petBtn.onclick = ()=>{
   stopAllMovement();
@@ -348,8 +348,8 @@ window.addEventListener("keydown", e=>{
   if(e.key === "ArrowLeft")  leftBtn.onclick();
   if(e.key === "ArrowRight") rightBtn.onclick();
   if(e.key === " ")          stopBtn.onclick();
-  if(e.key.toLowerCase() === "m") openMap();
-  if(e.key.toLowerCase() === "p") openPassport();
+  if(e.key.toLowerCase()==="m") openMap();
+  if(e.key.toLowerCase()==="p") openPassport();
 });
 
 // ---------- Panels ----------
@@ -363,18 +363,11 @@ passportOverlay.addEventListener("click", e=>{
   if(e.target === passportOverlay) passportOverlay.classList.remove("show");
 });
 
-function openMap(){
-  buildMap();
-  mapOverlay.classList.add("show");
-}
-
-function openPassport(){
-  buildPassport();
-  passportOverlay.classList.add("show");
-}
-
 mapBtn.onclick      = openMap;
 passportBtn.onclick = openPassport;
+
+function openMap(){ buildMap(); mapOverlay.classList.add("show"); }
+function openPassport(){ buildPassport(); passportOverlay.classList.add("show"); }
 
 // ---------- HUD ----------
 function updateHUD(){
@@ -386,7 +379,7 @@ function updateHUD(){
 }
 updateHUD();
 
-// ---------- Map / Passport ----------
+// ---------- Map / Passport builders ----------
 function buildMap(){
   const grid = document.getElementById("mapGrid");
   grid.innerHTML = "";
@@ -425,13 +418,12 @@ function buildPassport(){
       </div>
       <small>${p.subtitle}</small>
       <div class="big">${ok ? "✅" : "⬜"} ${p.emoji}</div>
-      <small>Animal friend nearby!</small>
-    `;
+      <small>Animal friend nearby!</small>`;
     grid.appendChild(stamp);
   });
 }
 
-// ---------- Travel (auto walk along path) ----------
+// ---------- Travel (auto-walk) ----------
 function travelTo(park){
   stopAllMovement();
   autoWalk = true;
@@ -442,8 +434,8 @@ function travelTo(park){
   showToast(`🧳 Walking to ${park.name}...`);
 }
 
-// ---------- Animals to tap ----------
-const animals = parks.map(p => ({
+// ---------- Animals (tap circles) ----------
+const animals = parks.map(p=>({
   x: p.x + 120,
   y: PATH_Y - 40,
   r: 34,
@@ -484,7 +476,7 @@ function checkDiscovery(){
 
 // ---------- Update ----------
 function update(){
-  // Movement
+  // movement
   if(autoWalk){
     const step = dog.speed;
     if(Math.abs(autoTargetX - dog.x) <= step){
@@ -493,7 +485,7 @@ function update(){
       dog.moving = false;
       setDogMood("paw", 120, `🏁 Arrived at ${autoTargetPark.name}!`);
     } else {
-      dog.x += step * (dog.dir);
+      dog.x += step * dog.dir;
     }
   } else {
     if(moveLeft){
@@ -510,22 +502,21 @@ function update(){
   }
 
   dog.x = clamp(dog.x, 0, WORLD_W - 200);
-  dog.y = DOG_GROUND_Y;  // ALWAYS same ground line
+  dog.y = DOG_GROUND_Y;   // always same ground line
 
-  // Mood timer
+  // mood timer
   if(dog.moodTimer > 0){
     dog.moodTimer--;
     if(dog.moodTimer === 0){
-      dog.mood = null;   // back to idle/walk
+      dog.mood = null;    // back to idle/walk
     }
   }
 
   dog.animTime++;
-
   centerCameraOn(dog.x, dog.y - DOG_TARGET_HEIGHT/2);
   checkDiscovery();
 
-  // Toast fade
+  // toast fade
   if(toastTime > 0){
     toastTime--;
     if(toastTime === 0) toastEl.classList.remove("show");
@@ -577,52 +568,76 @@ function drawAnimals(){
   }
 }
 
+// 🔥 THIS is the important bit: crop the walk sprite bottom and scale all poses the same
 function drawDog(){
   const sxGround = dog.x - camera.x;   // paws x
   const syGround = dog.y - camera.y;   // paws y
 
-  // Decide which sprite:
+  // choose sprite
   let key;
   if(dog.mood){
-    key = dog.mood;                  // "paw", "eat", "sleep"
+    key = dog.mood;               // "paw", "eat", "sleep"
   } else {
     key = dog.moving ? "walk" : "idle";
   }
 
-  let img = images[key];
+  const img = images[key];
   if(!img){
-    // Fallback box
     ctx.fillStyle = "brown";
     ctx.fillRect(sxGround - 80, syGround - DOG_TARGET_HEIGHT, 160, DOG_TARGET_HEIGHT);
     return;
   }
 
-  const frames = (key === "walk") ? DOG_WALK_FRAMES : 1;
+  const isWalk = (key === "walk");
+  const frames = isWalk ? DOG_WALK_FRAMES : 1;
   const fw = img.width / frames;
   const fh = img.height;
 
-  // 👉 OPTION A: force ALL poses to the same height
-  const scale = DOG_TARGET_HEIGHT / fh;
+  // crop source rect: full image for idle/mood, bottom part for walk
+  let srcY, srcH;
+  if(isWalk){
+    srcH = fh * WALK_SRC_FRACTION;
+    srcY = fh - srcH;
+  } else {
+    srcY = 0;
+    srcH = fh;
+  }
+
+  // scale so visible part is DOG_TARGET_HEIGHT tall
+  const scale = DOG_TARGET_HEIGHT / srcH;
   const drawW = fw * scale;
   const drawH = DOG_TARGET_HEIGHT;
 
+  // pick frame
   let frameIndex = 0;
   if(frames > 1){
     frameIndex = Math.floor(dog.animTime / 6) % frames;
   }
 
   const flip = (dog.dir < 0);
-
   const drawX = sxGround - drawW / 2;
-  const drawY = syGround - drawH;
+  const drawY = syGround - drawH;   // paws on ground
 
   ctx.save();
   if(flip){
     ctx.translate(drawX + drawW, drawY);
-    ctx.scale(-1, 1);
-    ctx.drawImage(img, frameIndex*fw, 0, fw, fh, 0, 0, drawW, drawH);
+    ctx.scale(-1,1);
+    ctx.drawImage(
+      img,
+      frameIndex*fw, srcY,
+      fw, srcH,
+      0, 0,
+      drawW, drawH
+    );
   } else {
-    ctx.drawImage(img, frameIndex*fw, 0, fw, fh, drawX, drawY, drawW, drawH);
+    ctx.translate(drawX, drawY);
+    ctx.drawImage(
+      img,
+      frameIndex*fw, srcY,
+      fw, srcH,
+      0, 0,
+      drawW, drawH
+    );
   }
   ctx.restore();
 }
@@ -634,7 +649,7 @@ function draw(){
   drawDog();
 }
 
-// ---------- Main Loop ----------
+// ---------- Main loop ----------
 function tick(){
   update();
   draw();
@@ -642,9 +657,9 @@ function tick(){
 }
 tick();
 
-// Intro toast
-showToast("🐶 Big dog, same size every pose, paws on one path!");
+showToast("🐶 Big dog, same size every pose. Walk strip fixed!");
 </script>
+
 
 
 
