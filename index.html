@@ -66,7 +66,7 @@
 
 <script>
 /* =========================================================
-   BIG DOG, SAME GROUND, 3 PARKS
+   BIG DOG, FIXED GROUND, IDLE SMALLER
    ========================================================= */
 
 const canvas = document.getElementById("game");
@@ -80,24 +80,27 @@ function resize(){
 window.addEventListener("resize", resize);
 resize();
 
-// ---------- world + dog size ----------
-function groundY(){ return canvas.height - 120; }  // feet line
+// ---------- ground lines ----------
+function dogGroundY(){  return canvas.height - 80;  }  // 🐶 FEET here (lower)
+function signGroundY(){ return canvas.height - 140; }  // 🚏 sign posts a bit higher
 
-// This is our "reference" size. Increase if you still want bigger.
-const BASE_DOG_HEIGHT = 380;      // idle dog height
-const FRAME_RATE       = 6;
-const IMG_PATH         = "assets/";
+// Reference height for idle dog art
+const BASE_DOG_HEIGHT = 380;
+const FRAME_RATE      = 6;
+const IMG_PATH        = "assets/";
 
-// Brutal extra zoom for poses that were tiny in the PNG
+// Per-state extra zoom
+// 👉 Walking size you liked = keep big
+// 👉 Idle too big = make smaller
 const STATE_SCALE = {
-  idle:  1.2,   // nice and big
-  walk:  2.5,   // HUGE
-  eat:   2.0,   // big
-  paw:   2.0,   // big
-  sleep: 2.5    // HUGE
+  idle:  0.7,   // 🔽 smaller idle
+  walk:  2.5,   // ✅ keep walking giant
+  eat:   2.0,
+  paw:   2.0,
+  sleep: 2.5
 };
 
-// 3 national parks along the screen
+// 3 national parks
 const parks = [
   { name:"Yosemite",    subtitle:"Half Dome",         pos:0.25, visited:false },
   { name:"Yellowstone", subtitle:"Old Faithful",      pos:0.50, visited:false },
@@ -185,13 +188,13 @@ function showMsg(text){
 
 // ---------- update ----------
 function update(){
-  // basic walking
+  // movement
   if(dog.state === "walk"){
     if(left)  dog.x -= dog.speed;
     if(right) dog.x += dog.speed;
   }
 
-  // keep on screen
+  // clamp to screen
   dog.x = Math.max(60, Math.min(canvas.width - 60, dog.x));
 
   // park stopping
@@ -221,24 +224,24 @@ function drawBackground(){
   ctx.fillStyle = "#bde0fe";
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  const gy = groundY();
+  const gy = dogGroundY();
   ctx.fillStyle = "#90e0ef";
   ctx.fillRect(0, gy, canvas.width, canvas.height - gy);
 }
 
 function drawParks(){
-  const gy = groundY();
+  const sg = signGroundY();
   ctx.textBaseline = "middle";
 
   for(const p of parks){
     const x = p.pos * canvas.width;
-    const signTop = gy - 120;
+    const signTop = sg - 120;
 
     // pole
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.fillRect(x - 3, signTop + 20, 6, 100);
 
-    // sign
+    // sign box
     ctx.fillStyle = "rgba(255,255,255,0.96)";
     ctx.fillRect(x - 90, signTop, 180, 44);
 
@@ -256,7 +259,7 @@ function drawParks(){
   }
 }
 
-// ---------- draw dog (all big, same ground) ----------
+// ---------- draw dog ----------
 function drawDog(){
   let state = dog.state;
   if(!STATE_SCALE[state]) state = "idle";
@@ -266,7 +269,7 @@ function drawDog(){
 
   if(state === "walk"){
     img    = art.walk || art.idle;
-    frames = 5;   // we expect 5-frame walk strip
+    frames = 5;
   } else if(state === "eat"){
     img = art.eat || art.idle;
   } else if(state === "paw"){
@@ -280,11 +283,11 @@ function drawDog(){
   let fw = img.width / frames;
   let fh = img.height;
 
-  // Base scale: make entire image about BASE_DOG_HEIGHT tall
+  // base scale from PNG height
   let baseScale = BASE_DOG_HEIGHT / fh;
 
-  // If the PNG is very small (lots of empty space), force bigger
-  if(fh < 400) baseScale *= 2.5;  // brute force zoom for tiny art
+  // tiny-source brute-force zoom
+  if(fh < 400) baseScale *= 2.5;
   if(fh < 250) baseScale *= 3.5;
 
   const extraScale = STATE_SCALE[state] || 1.0;
@@ -293,16 +296,17 @@ function drawDog(){
   const drawW = fw * scale;
   const drawH = fh * scale;
 
-  // animate walk frames
+  // walk animation
   let frameIndex = 0;
   if(frames > 1 && state === "walk"){
     frameIndex = Math.floor(dog.frame / FRAME_RATE) % frames;
   }
+
   const sx = frameIndex * fw;
 
-  // feet stay on ground line
+  // feet on ground line
   const gx = dog.x;
-  const gy = groundY();
+  const gy = dogGroundY();
   const dx = gx - drawW / 2;
   const dy = gy - drawH;
 
@@ -327,6 +331,7 @@ function loop(){
 }
 loop();
 </script>
+
 
 </body>
 </html>
