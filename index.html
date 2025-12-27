@@ -81,7 +81,7 @@ window.addEventListener("resize", resize);
 resize();
 
 // ---------- ground lines ----------
-function dogGroundY(){  return canvas.height - 20;  }  // 🐶 FEET here (lower)
+function dogGroundY(){  return canvas.height - 40;  }  // 🐶 FEET here (lower)
 function signGroundY(){ return canvas.height - 170; }  // 🚏 sign posts a bit higher
 
 // Reference height for idle dog art
@@ -307,8 +307,10 @@ function drawDog(){
   // feet on ground line
   const gx = dog.x;
   const gy = dogGroundY();
-  const dx = gx - drawW / 2;
-  const dy = gy - drawH;
+  // --- FIX: force feet on the ground ---
+const dx = gx - drawW / 2;
+const dy = gy - (drawH * 0.95);  // LOWER dog until feet touch ground
+
 
   ctx.save();
   if(dog.dir < 0){
