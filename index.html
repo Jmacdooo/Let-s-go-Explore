@@ -503,7 +503,7 @@ function update(){
   dog.x = clamp(dog.x, 0, WORLD_W - dog.w);
 
   // 🔥 always enforce height:
-  dog.y = PATH_Y - 160;
+  dog.y = PATH_Y - 260;
 
   if(dog.timer > 0) dog.timer--;
   if(dog.timer === 0 && !moveLeft && !moveRight){
