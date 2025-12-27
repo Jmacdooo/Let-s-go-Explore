@@ -176,16 +176,17 @@
 <script>
 /* ============================================
    MY FOREVER DOG — NATIONAL PARKS ROAD TRIP
+   Option A: Same-size dog, flat path, idle when stopped
    ============================================ */
 
 // ---------- Canvas ----------
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-function resize(){
-  canvas.width = Math.floor(window.innerWidth*devicePixelRatio);
-  canvas.height = Math.floor(window.innerHeight*devicePixelRatio);
-  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+function resize() {
+  canvas.width  = Math.floor(window.innerWidth * devicePixelRatio);
+  canvas.height = Math.floor(window.innerHeight * devicePixelRatio);
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
 }
 window.addEventListener("resize", resize);
 resize();
@@ -195,16 +196,17 @@ const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
 const dist  = (x1,y1,x2,y2)=>Math.hypot(x1-x2,y1-y2);
 
 // ---------- World Layout ----------
-// 📍 EDIT THESE TO CHANGE DOG / SIGN HEIGHT
-const PATH_Y = 760;             // sign + park label height
-const DOG_GROUND_Y = 960;       // ground line (paws sit here)
-const DOG_TARGET_HEIGHT = 420;  // DOG SIZE (change this for big/small)
+// Tweak these 3 to change layout/size:
+const PATH_Y            = 740;   // where signs/park labels sit
+const DOG_GROUND_Y      = 960;   // paws line (ground)
+const DOG_TARGET_HEIGHT = 420;   // dog height ON SCREEN (all poses)
 
+// World size
 const WORLD_W = 5200;
 const WORLD_H = 1400;
 
 const camera = { x:0, y:0 };
-function centerCameraOn(wx,wy){
+function centerCameraOn(wx, wy){
   camera.x = clamp(wx - window.innerWidth/2, 0, WORLD_W - window.innerWidth);
   camera.y = clamp(wy - window.innerHeight/2, 0, WORLD_H - window.innerHeight);
 }
@@ -214,211 +216,436 @@ const DOG_WALK_FRAMES = 5;
 const images = {};
 const BASES = ["assets/","./assets/","../assets/"];
 
-function loadImageSmart(key,file){
-  return new Promise(res=>{
-    let i=0;
-    function next(){
-      if(i>=BASES.length){console.warn("ERR",file);res(false);return;}
-      const img=new Image(); const src=BASES[i++]+file;
-      img.onload=()=>{images[key]=img;res(true);};
-      img.onerror=next; img.src=src;
-    } next();
+function loadImageSmart(key, file){
+  return new Promise(resolve=>{
+    let i = 0;
+    function tryNext(){
+      if(i >= BASES.length){
+        console.warn("❌ Could not load", file);
+        resolve(false);
+        return;
+      }
+      const img = new Image();
+      img.onload = ()=>{ images[key] = img; resolve(true); };
+      img.onerror = tryNext;
+      img.src = BASES[i++] + file;
+    }
+    tryNext();
   });
 }
 
-(async()=>{
-  await loadImageSmart("walk","dog_walk.png");
-  await loadImageSmart("idle","dog_idle.png");
-  await loadImageSmart("eat","dog_eat.png");
-  await loadImageSmart("paw","dog_paw.png");
-  await loadImageSmart("sleep","dog_sleep.png");
+(async function loadAssets(){
+  await loadImageSmart("idle",  "dog_idle.png");
+  await loadImageSmart("walk",  "dog_walk.png");
+  await loadImageSmart("eat",   "dog_eat.png");
+  await loadImageSmart("paw",   "dog_paw.png");
+  await loadImageSmart("sleep", "dog_sleep.png");
 })();
 
 // ---------- Parks ----------
 const parks = [
-  {id:"yosemite",    x:320,  y:PATH_Y, emoji:"⛰️",  name:"Yosemite",      sub:"Half Dome",          a:"🐻 A bear sniffs the air…" },
-  {id:"grandcanyon", x:820,  y:PATH_Y, emoji:"🧡",  name:"Grand Canyon",  sub:"South Rim View",     a:"🦅 A condor glides overhead!" },
-  {id:"zion",        x:1320, y:PATH_Y, emoji:"🪨",  name:"Zion",           sub:"Angels Landing",     a:"🦏 A bighorn sheep poses." },
-  {id:"arches",      x:1820, y:PATH_Y, emoji:"🌅",  name:"Arches",         sub:"Delicate Arch",      a:"🦊 A fox darts by!" },
-  {id:"yellowstone", x:2320, y:PATH_Y, emoji:"💦",  name:"Yellowstone",    sub:"Old Faithful",       a:"🦬 A bison keeps its distance." },
-  {id:"tetons",      x:2820, y:PATH_Y, emoji:"🏔️",  name:"Grand Teton",    sub:"Teton Range",        a:"🫎 A moose munches leaves." },
-  {id:"glacier",     x:3320, y:PATH_Y, emoji:"❄️",  name:"Glacier",        sub:"Sun Road",           a:"🐐 A mountain goat climbs!" },
-  {id:"rockymtn",    x:3820, y:PATH_Y, emoji:"🌲",  name:"Rocky Mountain", sub:"Trail Ridge Road",   a:"🦌 An elk bugles!" },
-  {id:"acadia",      x:4320, y:PATH_Y, emoji:"🌊",  name:"Acadia",         sub:"Cadillac Mountain",  a:"🦭 A seal splashes happily!" },
-  {id:"everglades",  x:4820, y:PATH_Y, emoji:"🐊",  name:"Everglades",     sub:"Alligator Alley",    a:"🐊 An alligator watches (far away)." }
+  { id:"yosemite",    name:"Yosemite",      subtitle:"Half Dome",                  emoji:"⛰️", x: 320,  y: PATH_Y, animal:{ emoji:"🐻", message:"A bear sniffs the air… your dog stays calm. Good pup!" } },
+  { id:"grandcanyon", name:"Grand Canyon",  subtitle:"South Rim View",             emoji:"🧡", x: 820,  y: PATH_Y, animal:{ emoji:"🦅", message:"A condor glides overhead. Your dog looks up like: wow!" } },
+  { id:"zion",        name:"Zion",          subtitle:"Angels Landing",             emoji:"🪨", x: 1320, y: PATH_Y, animal:{ emoji:"🦏", message:"A bighorn sheep poses for a photo. Your dog wags politely." } },
+  { id:"arches",      name:"Arches",        subtitle:"Delicate Arch",              emoji:"🌅", x: 1820, y: PATH_Y, animal:{ emoji:"🦊", message:"A fox darts by! Your dog freezes… then smiles." } },
+  { id:"yellowstone", name:"Yellowstone",   subtitle:"Old Faithful",               emoji:"💦", x: 2320, y: PATH_Y, animal:{ emoji:"🦬", message:"A bison is nearby. Your dog keeps a respectful distance. Smart!" } },
+  { id:"tetons",      name:"Grand Teton",   subtitle:"Teton Range",                emoji:"🏔️", x: 2820, y: PATH_Y, animal:{ emoji:"🫎", message:"A moose munches leaves. Your dog is amazed (and quiet)." } },
+  { id:"glacier",     name:"Glacier",       subtitle:"Going-to-the-Sun Road",      emoji:"❄️", x: 3320, y: PATH_Y, animal:{ emoji:"🐐", message:"A mountain goat climbs like a superhero." } },
+  { id:"rockymtn",    name:"Rocky Mountain",subtitle:"Trail Ridge Road",           emoji:"🌲", x: 3820, y: PATH_Y, animal:{ emoji:"🦌", message:"An elk bugles! Your dog tilts head: ‘What was THAT?’" } },
+  { id:"acadia",      name:"Acadia",        subtitle:"Cadillac Mountain",          emoji:"🌊", x: 4320, y: PATH_Y, animal:{ emoji:"🦭", message:"A seal pops up and splashes. Your dog is delighted." } },
+  { id:"everglades",  name:"Everglades",    subtitle:"Alligator Alley",            emoji:"🐊", x: 4820, y: PATH_Y, animal:{ emoji:"🐊", message:"You spot an alligator (from far away!). Your dog stays safe." } },
 ];
 
 const visited = new Set();
 
-// ---------- Dog ----------
-const dog={
-  x:240,
-  y:DOG_GROUND_Y-DOG_TARGET_HEIGHT,  // top of sprite
-  dir:1,
-  speed:3.4,
-  state:"idle", // idle | walk | eat | paw | sleep
-  timer:0,
-  anim:0
+// ---------- Dog (paws anchored to ground line) ----------
+const dog = {
+  x: 240,              // horizontal center of the dog
+  y: DOG_GROUND_Y,     // paws position (on ground line)
+  dir: 1,              // 1 = right, -1 = left
+  speed: 3.8,
+  moving: false,       // walking or not
+  mood: null,          // null | "paw" | "eat" | "sleep"
+  moodTimer: 0,
+  animTime: 0
 };
 
-let autoWalk=false;
-let autoX=null;
+let moveLeft  = false;
+let moveRight = false;
+let autoWalk  = false;
+let autoTargetX = null;
+let autoTargetPark = null;
 
-// ---------- UI Buttons ----------
-const btn = id=>document.getElementById(id);
+// ---------- UI Elements ----------
+const leftBtn     = document.getElementById("leftBtn");
+const rightBtn    = document.getElementById("rightBtn");
+const stopBtn     = document.getElementById("stopBtn");
+const petBtn      = document.getElementById("petBtn");
+const feedBtn     = document.getElementById("feedBtn");
+const mapBtn      = document.getElementById("mapBtn");
+const passportBtn = document.getElementById("passportBtn");
 
-btn("leftBtn").onclick = ()=>{stopAuto(); dog.state="walk"; dog.dir=-1;};
-btn("rightBtn").onclick= ()=>{stopAuto(); dog.state="walk"; dog.dir=1;};
-btn("stopBtn").onclick = ()=>{stopAuto(); dog.state="idle";};
+const toastEl         = document.getElementById("toast");
+const mapOverlay      = document.getElementById("mapOverlay");
+const passportOverlay = document.getElementById("passportOverlay");
+const countEl         = document.getElementById("count");
+const progressEl      = document.getElementById("progress");
 
-btn("petBtn").onclick  = ()=>{stopAuto(); mood("paw",140,"❤️ Your dog feels loved!");};
-btn("feedBtn").onclick = ()=>{stopAuto(); mood("eat",160,"🍖 Yum!");};
+let toastTime = 0;
 
-btn("mapBtn").onclick      = ()=>openMap();
-btn("passportBtn").onclick = ()=>openPass();
+// ---------- Helpers: movement + mood ----------
+function stopAllMovement(){
+  moveLeft = moveRight = false;
+  autoWalk = false;
+  autoTargetX = null;
+  autoTargetPark = null;
+  dog.moving = false;
+}
 
-function stopAuto(){autoWalk=false; autoX=null;}
+function showToast(msg){
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  toastTime = 200;
+}
 
-window.addEventListener("keydown",e=>{
-  if(e.key==="ArrowLeft") btn("leftBtn").onclick();
-  if(e.key==="ArrowRight")btn("rightBtn").onclick();
-  if(e.key===" ")         btn("stopBtn").onclick();
+function setDogMood(moodName, frames, message){
+  dog.mood = moodName;       // "paw", "eat", "sleep"
+  dog.moodTimer = frames;
+  if(message) showToast(message);
+}
+
+// ---------- Controls ----------
+leftBtn.onclick = ()=>{
+  stopAllMovement();
+  moveLeft = true;
+  dog.dir = -1;
+  dog.moving = true;
+};
+
+rightBtn.onclick = ()=>{
+  stopAllMovement();
+  moveRight = true;
+  dog.dir = 1;
+  dog.moving = true;
+};
+
+stopBtn.onclick = ()=>{
+  stopAllMovement();
+  // when not moving and no mood → idle dog shows
+};
+
+petBtn.onclick = ()=>{
+  stopAllMovement();
+  setDogMood("paw", 140, "❤️ Your dog feels loved!");
+};
+
+feedBtn.onclick = ()=>{
+  stopAllMovement();
+  setDogMood("eat", 160, "🍖 Yum! Happy dog energy!");
+};
+
+window.addEventListener("keydown", e=>{
+  if(e.key === "ArrowLeft")  leftBtn.onclick();
+  if(e.key === "ArrowRight") rightBtn.onclick();
+  if(e.key === " ")          stopBtn.onclick();
+  if(e.key.toLowerCase() === "m") openMap();
+  if(e.key.toLowerCase() === "p") openPassport();
 });
 
-// ---------- HUD / Toast ----------
-const toastEl=document.getElementById("toast");
-let toastT=0;
-function toast(msg){toastEl.textContent=msg;toastEl.classList.add("show");toastT=220;}
-function mood(s,t,m){dog.state=s;dog.timer=t;if(m)toast(m);}
+// ---------- Panels ----------
+document.getElementById("closeMapBtn").onclick      = ()=>mapOverlay.classList.remove("show");
+document.getElementById("closePassportBtn").onclick = ()=>passportOverlay.classList.remove("show");
 
-// ---------- MAP / PASSPORT ----------
-const mapOverlay=document.getElementById("mapOverlay");
-const passOverlay=document.getElementById("passportOverlay");
+mapOverlay.addEventListener("click", e=>{
+  if(e.target === mapOverlay) mapOverlay.classList.remove("show");
+});
+passportOverlay.addEventListener("click", e=>{
+  if(e.target === passportOverlay) passportOverlay.classList.remove("show");
+});
 
-function openMap(){buildMap();mapOverlay.classList.add("show");}
-function openPass(){buildPass();passOverlay.classList.add("show");}
-document.getElementById("closeMapBtn").onclick      =()=>mapOverlay.classList.remove("show");
-document.getElementById("closePassportBtn").onclick =()=>passOverlay.classList.remove("show");
+function openMap(){
+  buildMap();
+  mapOverlay.classList.add("show");
+}
 
-// Map builder
+function openPassport(){
+  buildPassport();
+  passportOverlay.classList.add("show");
+}
+
+mapBtn.onclick      = openMap;
+passportBtn.onclick = openPassport;
+
+// ---------- HUD ----------
+function updateHUD(){
+  countEl.textContent = visited.size;
+  progressEl.innerHTML = parks.map(p=>{
+    const ok = visited.has(p.id);
+    return `${ok ? "✅" : "⬜"} <b>${p.name}</b> — ${p.subtitle}`;
+  }).join("<br/>");
+}
+updateHUD();
+
+// ---------- Map / Passport ----------
 function buildMap(){
-  const g=document.getElementById("mapGrid"); g.innerHTML="";
+  const grid = document.getElementById("mapGrid");
+  grid.innerHTML = "";
   parks.forEach(p=>{
-    const card=document.createElement("div"); card.className="card";
-    card.onclick=()=>{travel(p)};
-    card.innerHTML=`<div class="thumb">${p.emoji}</div>
-      <div class="meta"><b>${p.name}</b><span>${p.sub}</span></div>`;
-    g.appendChild(card);
+    const card = document.createElement("div");
+    card.className = "card";
+    card.onclick = ()=>{
+      mapOverlay.classList.remove("show");
+      travelTo(p);
+    };
+    card.innerHTML = `
+      <div class="thumb">${p.emoji}</div>
+      <div class="meta">
+        <b>${p.name}</b>
+        <span>${p.subtitle}</span>
+        <div class="badge">
+          <span class="pill">${visited.has(p.id) ? "✅ Visited" : "⬜ Not yet"}</span>
+          <span class="pill">${p.emoji} Park</span>
+        </div>
+      </div>`;
+    grid.appendChild(card);
   });
 }
 
-// Passport
-function buildPass(){
-  const g=document.getElementById("passportGrid"); g.innerHTML="";
+function buildPassport(){
+  const grid = document.getElementById("passportGrid");
+  grid.innerHTML = "";
   parks.forEach(p=>{
-    const ok=visited.has(p.id);
-    g.innerHTML+=`<div class="stamp">
-      <b>${p.name}</b> — ${ok?"🟢 STAMPED":"⚪ EMPTY"}
-      <div>${ok?"🟢":"⚪"} ${p.emoji}</div>
-    </div>`;
+    const ok = visited.has(p.id);
+    const stamp = document.createElement("div");
+    stamp.className = "stamp";
+    stamp.innerHTML = `
+      <div class="row">
+        <b>${p.name}</b>
+        <span class="pill">${ok ? "STAMPED" : "EMPTY"}</span>
+      </div>
+      <small>${p.subtitle}</small>
+      <div class="big">${ok ? "✅" : "⬜"} ${p.emoji}</div>
+      <small>Animal friend nearby!</small>
+    `;
+    grid.appendChild(stamp);
   });
 }
 
-// ---------- Travel via path ----------
-function travel(p){
-  autoWalk=true;
-  autoX=p.x-110;
-  dog.state="walk";
-  dog.dir=(autoX >= dog.x)?1:-1;
-  toast(`🧳 Traveling to ${p.name}...`);
+// ---------- Travel (auto walk along path) ----------
+function travelTo(park){
+  stopAllMovement();
+  autoWalk = true;
+  autoTargetX = park.x - 110;
+  autoTargetPark = park;
+  dog.dir = (autoTargetX >= dog.x) ? 1 : -1;
+  dog.moving = true;
+  showToast(`🧳 Walking to ${park.name}...`);
+}
+
+// ---------- Animals to tap ----------
+const animals = parks.map(p => ({
+  x: p.x + 120,
+  y: PATH_Y - 40,
+  r: 34,
+  emoji: p.animal.emoji,
+  message: p.animal.message
+}));
+
+canvas.addEventListener("pointerdown", e=>{
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX - rect.left;
+  const sy = e.clientY - rect.top;
+  const wx = sx + camera.x;
+  const wy = sy + camera.y;
+
+  for(const a of animals){
+    if(dist(wx, wy, a.x, a.y) < a.r + 20){
+      stopAllMovement();
+      setDogMood("paw", 140, `${a.emoji} ${a.message}`);
+      return;
+    }
+  }
+});
+
+// ---------- Discovery ----------
+function checkDiscovery(){
+  for(const p of parks){
+    if(visited.has(p.id)) continue;
+    const dogCenterX = dog.x;
+    const dogCenterY = dog.y - DOG_TARGET_HEIGHT/2;
+    const d = dist(dogCenterX, dogCenterY, p.x, p.y);
+    if(d < 140){
+      visited.add(p.id);
+      updateHUD();
+      setDogMood("paw", 160, `✨ Discovered ${p.name}!`);
+    }
+  }
 }
 
 // ---------- Update ----------
 function update(){
+  // Movement
   if(autoWalk){
-    if(Math.abs(autoX-dog.x)<=dog.speed){
-      dog.x=autoX; autoWalk=false; mood("paw",120,"Arrived! 🎉");
+    const step = dog.speed;
+    if(Math.abs(autoTargetX - dog.x) <= step){
+      dog.x = autoTargetX;
+      autoWalk = false;
+      dog.moving = false;
+      setDogMood("paw", 120, `🏁 Arrived at ${autoTargetPark.name}!`);
     } else {
-      dog.x+=dog.speed*(dog.dir);
+      dog.x += step * (dog.dir);
     }
   } else {
-    if(dog.state==="walk") dog.x+=dog.speed*(dog.dir);
-  }
-
-  dog.x=clamp(dog.x,0,WORLD_W-200);
-  dog.y = DOG_GROUND_Y-DOG_TARGET_HEIGHT;
-
-  if(dog.timer>0) dog.timer--;
-  if(dog.timer===0 && !autoWalk && dog.state!=="walk") dog.state="idle";
-
-  dog.anim++;
-  centerCameraOn(dog.x+DOG_TARGET_HEIGHT/3, dog.y+DOG_TARGET_HEIGHT/2);
-
-  checkPark();
-  if(toastT>0) toastT--; else toastEl.classList.remove("show");
-}
-
-// ---------- Park Discovery ----------
-function checkPark(){
-  for(const p of parks){
-    const d=dist(dog.x+80,dog.y+200,p.x,p.y);
-    if(d<120 && !visited.has(p.id)){
-      visited.add(p.id);
-      toast(`✨ ${p.name}: ${p.a}`);
+    if(moveLeft){
+      dog.x -= dog.speed;
+      dog.dir = -1;
+      dog.moving = true;
+    } else if(moveRight){
+      dog.x += dog.speed;
+      dog.dir = 1;
+      dog.moving = true;
+    } else {
+      dog.moving = false;
     }
   }
+
+  dog.x = clamp(dog.x, 0, WORLD_W - 200);
+  dog.y = DOG_GROUND_Y;  // ALWAYS same ground line
+
+  // Mood timer
+  if(dog.moodTimer > 0){
+    dog.moodTimer--;
+    if(dog.moodTimer === 0){
+      dog.mood = null;   // back to idle/walk
+    }
+  }
+
+  dog.animTime++;
+
+  centerCameraOn(dog.x, dog.y - DOG_TARGET_HEIGHT/2);
+  checkDiscovery();
+
+  // Toast fade
+  if(toastTime > 0){
+    toastTime--;
+    if(toastTime === 0) toastEl.classList.remove("show");
+  }
 }
 
-// ---------- Draw Background / Signs ----------
-function drawBG(){
-  ctx.fillStyle="#dff2ff"; ctx.fillRect(0,0,window.innerWidth,window.innerHeight);
+// ---------- Drawing ----------
+function drawBackground(){
+  ctx.fillStyle = "#dff2ff";
+  ctx.fillRect(0,0,window.innerWidth,window.innerHeight);
 
-  const gY = DOG_GROUND_Y-camera.y;
-  ctx.fillStyle="#8ecae6"; ctx.fillRect(-camera.x,gY, WORLD_W,500);
+  const groundY = DOG_GROUND_Y - camera.y;
+  ctx.fillStyle = "#8ecae6";
+  ctx.fillRect(-camera.x, groundY, WORLD_W, 500);
 }
 
 function drawSigns(){
-  parks.forEach(p=>{
-    const sx=p.x-camera.x, sy=p.y-camera.y;
-    ctx.fillStyle="rgba(255,255,255,.9)";
-    ctx.fillRect(sx-110,sy-20,220,48);
-    ctx.fillStyle="#000"; ctx.font="14px system-ui";
-    ctx.fillText(p.name,sx-100,sy+0);
-    ctx.font="12px system-ui";
-    ctx.fillText(p.sub,sx-100,sy+18);
-  });
+  for(const p of parks){
+    const sx = p.x - camera.x;
+    const sy = p.y - camera.y;
+
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.fillRect(sx - 110, sy - 20, 220, 48);
+
+    ctx.fillStyle = "#000";
+    ctx.font = "14px system-ui";
+    ctx.fillText(p.name, sx - 100, sy);
+    ctx.font = "12px system-ui";
+    ctx.fillText(p.subtitle, sx - 100, sy + 18);
+
+    ctx.font = "18px system-ui";
+    ctx.fillText(visited.has(p.id) ? "✅" : "✨", sx + 86, sy + 16);
+  }
 }
 
-// ---------- Draw Dog ----------
+function drawAnimals(){
+  for(const a of animals){
+    const sx = a.x - camera.x;
+    const sy = a.y - camera.y;
+
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.beginPath();
+    ctx.arc(sx, sy, a.r, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.font = "26px system-ui";
+    ctx.fillStyle = "#000";
+    ctx.fillText(a.emoji, sx - 12, sy + 10);
+  }
+}
+
 function drawDog(){
-  const sx=dog.x-camera.x, sy=dog.y-camera.y;
-  let key = (dog.state==="walk")?"walk":dog.state;
-  key = key in images ? key : "idle";
-  const img=images[key];
-  if(!img){ctx.fillStyle="brown";ctx.fillRect(sx,sy,120,100);return;}
+  const sxGround = dog.x - camera.x;   // paws x
+  const syGround = dog.y - camera.y;   // paws y
 
-  const frames=(key==="walk")?DOG_WALK_FRAMES:1;
-  const fw=img.width/frames, fh=img.height;
-  const scale = DOG_TARGET_HEIGHT/fh;
-  const dw=fw*scale, dh=DOG_TARGET_HEIGHT;
+  // Decide which sprite:
+  let key;
+  if(dog.mood){
+    key = dog.mood;                  // "paw", "eat", "sleep"
+  } else {
+    key = dog.moving ? "walk" : "idle";
+  }
 
-  let f=0;
-  if(frames>1) f=Math.floor(dog.anim/6)%frames;
+  let img = images[key];
+  if(!img){
+    // Fallback box
+    ctx.fillStyle = "brown";
+    ctx.fillRect(sxGround - 80, syGround - DOG_TARGET_HEIGHT, 160, DOG_TARGET_HEIGHT);
+    return;
+  }
+
+  const frames = (key === "walk") ? DOG_WALK_FRAMES : 1;
+  const fw = img.width / frames;
+  const fh = img.height;
+
+  // 👉 OPTION A: force ALL poses to the same height
+  const scale = DOG_TARGET_HEIGHT / fh;
+  const drawW = fw * scale;
+  const drawH = DOG_TARGET_HEIGHT;
+
+  let frameIndex = 0;
+  if(frames > 1){
+    frameIndex = Math.floor(dog.animTime / 6) % frames;
+  }
+
+  const flip = (dog.dir < 0);
+
+  const drawX = sxGround - drawW / 2;
+  const drawY = syGround - drawH;
 
   ctx.save();
-  if(dog.dir===-1){ctx.translate(sx+dw,sy);ctx.scale(-1,1);}
-  else{ctx.translate(sx,sy);}
-  ctx.drawImage(img,f*fw,0,fw,fh,0,0,dw,dh);
+  if(flip){
+    ctx.translate(drawX + drawW, drawY);
+    ctx.scale(-1, 1);
+    ctx.drawImage(img, frameIndex*fw, 0, fw, fh, 0, 0, drawW, drawH);
+  } else {
+    ctx.drawImage(img, frameIndex*fw, 0, fw, fh, drawX, drawY, drawW, drawH);
+  }
   ctx.restore();
 }
 
-// ---------- Loop ----------
-function draw(){drawBG();drawSigns();drawDog();}
-function tick(){update();draw();requestAnimationFrame(tick);}
+function draw(){
+  drawBackground();
+  drawSigns();
+  drawAnimals();
+  drawDog();
+}
+
+// ---------- Main Loop ----------
+function tick(){
+  update();
+  draw();
+  requestAnimationFrame(tick);
+}
 tick();
 
-toast("🐶 Welcome! BIG dog edition 🎉");
+// Intro toast
+showToast("🐶 Big dog, same size every pose, paws on one path!");
 </script>
+
 
 
 
