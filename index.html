@@ -197,10 +197,9 @@ const dist  = (x1,y1,x2,y2)=>Math.hypot(x1-x2,y1-y2);
 // ---------- World ----------
 const WORLD_W = 5200;
 const WORLD_H = 1400;
-const PATH_Y  = 860;   // landmark row
 
-// world Y where the dog's paws sit (a bit inside the ground strip)
-const DOG_BASE_Y = 930;
+// CHANGED: raise signs & animals higher on the screen
+const PATH_Y  = 740;   // used for signs + animals (was 860)
 
 const camera = { x:0, y:0 };
 function centerCameraOn(wx,wy){
@@ -209,10 +208,11 @@ function centerCameraOn(wx,wy){
 }
 
 // ---------- Assets ----------
-const DOG_WALK_FRAMES  = 5;    // your strip has 5 dogs
-const DOG_SPRITE_SCALE = 0.7;  // overall sprite size
+const DOG_WALK_FRAMES  = 5;    
 
-// try a few possible paths to assets so it works no matter where index.html lives
+// CHANGED: make dog a bit smaller so whole body fits
+const DOG_SPRITE_SCALE = 0.55;  // was 0.7
+
 const IMAGE_BASES = [
   "assets/",
   "./assets/",
@@ -274,12 +274,12 @@ const discovered = new Set();
 // ---------- Dog ----------
 const dog = {
   x: 240,
-  y: PATH_Y - 260,   // still used for logic/camera, but not for drawing baseline
+  y: PATH_Y - 260,   // logical row; drawing uses sprite height
   w: 84,
   h: 64,
   speed: 3.4,
-  dir: 1,           // 1 right, -1 left
-  state: "idle",    // idle | walk | happy | eat | sleep | travel
+  dir: 1,           
+  state: "idle",    
   timer: 0,
   animTime: 0
 };
@@ -312,8 +312,15 @@ stopBtn.onclick  = ()=>{
   dog.state = "idle";
 };
 
-petBtn.onclick   = ()=>setDogMood("happy", 140, "❤️ Your dog feels loved!");
-feedBtn.onclick  = ()=>setDogMood("eat",   160, "🍖 Yum! Happy dog energy!");
+// CHANGED: when petting or feeding, stop movement so the scene freezes
+petBtn.onclick   = ()=>{
+  moveLeft = moveRight = false;
+  setDogMood("happy", 140, "❤️ Your dog feels loved!");
+};
+feedBtn.onclick  = ()=>{
+  moveLeft = moveRight = false;
+  setDogMood("eat",   160, "🍖 Yum! Happy dog energy!");
+};
 
 window.addEventListener("keydown",(e)=>{
   if(e.key==="ArrowLeft")  leftBtn.onclick();
@@ -429,6 +436,7 @@ function travelTo(park){
   moveLeft = moveRight = false;
 
   dog.x = clamp(park.x - 110, 0, WORLD_W - dog.w);
+  dog.y = PATH_Y - 260;
   dog.dir = 1;
 
   centerCameraOn(dog.x, dog.y);
@@ -465,6 +473,7 @@ canvas.addEventListener("pointerdown",(e)=>{
   for(const a of animals){
     const d = dist(wx, wy, a.x, a.y);
     if(d < a.r + 22){
+      moveLeft = moveRight = false;                // stop moving when tapping animals too
       setDogMood("happy", 140, `${a.emoji} ${a.message}`);
       return;
     }
@@ -480,222 +489,8 @@ function checkDiscovery(){
       p.x, p.y
     );
     if(d < 95){
-      discovered.add(p.id);
-      renderHUD();
-      setDogMood("happy", 160, `✨ Discovered ${p.name} — ${p.subtitle}!`);
-      if(discovered.size === parks.length){
-        toast("🏁 You did it! All landmarks collected!");
-      }
-      return;
-    }
-  }
-}
+      d
 
-// ---------- Update ----------
-function update(){
-  if(moveLeft)  dog.x -= dog.speed;
-  if(moveRight) dog.x += dog.speed;
-  dog.x = clamp(dog.x, 0, WORLD_W - dog.w);
-
-  // keep his logical row constant for now
-  dog.y = PATH_Y - 260;
-
-  if(dog.timer > 0) dog.timer--;
-  if(dog.timer === 0 && !moveLeft && !moveRight){
-    dog.state = "idle";
-  }
-
-  dog.animTime += 1;
-  centerCameraOn(dog.x + dog.w/2, dog.y + dog.h/2);
-  checkDiscovery();
-
-  if(toastT > 0){
-    toastT--;
-    if(toastT === 0) toastEl.classList.remove("show");
-  }
-
-  if(travelFlash > 0) travelFlash--;
-}
-
-// ---------- Draw ----------
-function drawBackground(){
-  ctx.fillStyle = "#bde0fe";
-  ctx.fillRect(0,0,window.innerWidth, window.innerHeight);
-
-  ctx.fillStyle = "rgba(0,0,0,0.06)";
-  for(let i=0;i<14;i++){
-    const x = (i*420 - (camera.x*0.35)%420);
-    ctx.beginPath();
-    ctx.ellipse(x, 240, 260, 120, 0, 0, Math.PI*2);
-    ctx.fill();
-  }
-
-  const groundY = 920 - camera.y;
-  ctx.fillStyle = "#8ecae6";
-  ctx.fillRect(-camera.x, groundY, WORLD_W, 500);
-
-  ctx.fillStyle = "rgba(0,0,0,0.10)";
-  ctx.fillRect(-camera.x, groundY + 55, WORLD_W, 30);
-
-  ctx.fillStyle = "rgba(255,255,255,0.55)";
-  for(let i=0;i<60;i++){
-    const fx = (i*140 - (camera.x*0.6)%140) + 20;
-    const fy = groundY + 30 + (i%3)*10;
-    ctx.fillRect(fx, fy, 3, 3);
-  }
-}
-
-function drawLandmarks(){
-  for(const p of parks){
-    const sx = p.x - camera.x;
-    const sy = p.y - camera.y;
-
-    ctx.fillStyle = discovered.has(p.id) ? "rgba(0,0,0,0.75)" : "rgba(0,0,0,0.35)";
-    ctx.fillRect(sx - 10, sy + 25, 20, 90);
-
-    ctx.fillStyle = "rgba(255,255,255,0.92)";
-    ctx.fillRect(sx - 110, sy - 20, 220, 48);
-
-    ctx.fillStyle = "#000";
-    ctx.font = "14px system-ui";
-    ctx.fillText(p.name, sx - 100, sy + 0);
-    ctx.font = "12px system-ui";
-    ctx.fillText(p.subtitle, sx - 100, sy + 18);
-
-    ctx.font = "18px system-ui";
-    ctx.fillText(discovered.has(p.id) ? "✅" : "✨", sx + 86, sy + 16);
-  }
-}
-
-function drawAnimals(){
-  for(const a of animals){
-    const sx = a.x - camera.x;
-    const sy = a.y - camera.y;
-
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.beginPath();
-    ctx.arc(sx, sy, a.r, 0, Math.PI*2);
-    ctx.fill();
-
-    ctx.font = "26px system-ui";
-    ctx.fillStyle = "#000";
-    ctx.fillText(a.emoji, sx - 12, sy + 10);
-
-    ctx.font = "12px system-ui";
-    ctx.fillText("tap me", sx - 18, sy + 36);
-  }
-}
-
-function drawDog(){
-  const sx = dog.x - camera.x;
-
-  let key;
-  if(dog.state === "walk")      key = "dog_walk";
-  else if(dog.state === "eat")  key = "dog_eat";
-  else if(dog.state === "happy")key = "dog_paw";
-  else if(dog.state === "sleep")key = "dog_sleep";
-  else                          key = "dog_idle";
-
-  const img = images[key];
-
-  if(img){
-    let frames = 1;
-    if(key === "dog_walk") frames = DOG_WALK_FRAMES;
-
-    const fw = img.width / frames;
-    const fh = img.height;
-
-    let frameIndex = 0;
-    if(frames > 1){
-      frameIndex = Math.floor(dog.animTime / 6) % frames;
-    }
-
-    const drawW = fw * DOG_SPRITE_SCALE;
-    const drawH = fh * DOG_SPRITE_SCALE;
-
-    // world → screen for the paws baseline
-    const baseSy = DOG_BASE_Y - camera.y;
-    const sy = baseSy - drawH; // top of sprite
-
-    // PNG faces RIGHT → flip only when moving LEFT
-    const flip = (dog.dir < 0);
-
-    ctx.save();
-    if(flip){
-      ctx.translate(sx + drawW, sy);
-      ctx.scale(-1, 1);
-      ctx.drawImage(img, frameIndex*fw, 0, fw, fh, 0, 0, drawW, drawH);
-    } else {
-      ctx.drawImage(img, frameIndex*fw, 0, fw, fh, sx, sy, drawW, drawH);
-    }
-    ctx.restore();
-  } else {
-    const baseSy = DOG_BASE_Y - camera.y;
-    const sy = baseSy - dog.h;
-    ctx.fillStyle = "#a97142";
-    ctx.fillRect(sx, sy, dog.w, dog.h);
-  }
-}
-
-function drawMinimap(){
-  const w = 220, h = 70;
-  const x = window.innerWidth - w - 14;
-  const y = window.innerHeight - h - 14;
-
-  ctx.fillStyle = "rgba(255,255,255,0.85)";
-  ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = "rgba(0,0,0,0.2)";
-  ctx.strokeRect(x, y, w, h);
-
-  ctx.fillStyle = "rgba(0,0,0,0.12)";
-  ctx.fillRect(x+10, y+34, w-20, 6);
-
-  for(const p of parks){
-    const px = x + 10 + (p.x / WORLD_W) * (w-20);
-    ctx.fillStyle = discovered.has(p.id) ? "rgba(0,0,0,0.7)" : "rgba(0,0,0,0.25)";
-    ctx.beginPath();
-    ctx.arc(px, y+37, 4, 0, Math.PI*2);
-    ctx.fill();
-  }
-
-  const dx = x + 10 + (dog.x / WORLD_W) * (w-20);
-  ctx.fillStyle = "rgba(255,183,3,1)";
-  ctx.beginPath();
-  ctx.arc(dx, y+37, 5, 0, Math.PI*2);
-  ctx.fill();
-
-  ctx.font = "12px system-ui";
-  ctx.fillStyle = "#000";
-  ctx.fillText("Mini-map", x+10, y+16);
-}
-
-function drawFlash(){
-  if(travelFlash<=0) return;
-  ctx.fillStyle = `rgba(255,255,255,${travelFlash/18})`;
-  ctx.fillRect(0,0,window.innerWidth,window.innerHeight);
-}
-
-function draw(){
-  drawBackground();
-  drawLandmarks();
-  drawAnimals();
-  drawDog();
-  drawMinimap();
-  drawFlash();
-}
-
-// ---------- Main loop ----------
-function tick(){
-  update();
-  draw();
-  requestAnimationFrame(tick);
-}
-tick();
-
-// Intro
-travelTo(parks[0]);
-toast("🐶 Welcome! Use Walk buttons (or arrow keys). Tap animals. Collect all 10 landmarks!");
-</script>
 
 
 
