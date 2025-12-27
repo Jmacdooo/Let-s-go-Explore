@@ -199,6 +199,9 @@ const WORLD_W = 5200;
 const WORLD_H = 1400;
 const PATH_Y  = 860;   // landmark row
 
+// 👇 NEW: ground baseline must match drawBackground ground
+const GROUND_Y = 920;  // world Y where the ground strip begins (paws sit here)
+
 const camera = { x:0, y:0 };
 function centerCameraOn(wx,wy){
   camera.x = clamp(wx - window.innerWidth /2, 0, WORLD_W - window.innerWidth);
@@ -271,7 +274,8 @@ const discovered = new Set();
 // ---------- Dog ----------
 const dog = {
   x: 240,
-  y: PATH_Y - 260,   // higher so whole dog is visible
+  // this will be overwritten once images load so the bottom of the sprite hits GROUND_Y
+  y: PATH_Y - 260,
   w: 84,
   h: 64,
   speed: 3.4,
@@ -426,7 +430,7 @@ function travelTo(park){
   moveLeft = moveRight = false;
 
   dog.x = clamp(park.x - 110, 0, WORLD_W - dog.w);
-  dog.y = PATH_Y - 260;
+  // vertical will be snapped to ground below after images load
   dog.dir = 1;
 
   centerCameraOn(dog.x, dog.y);
@@ -495,8 +499,13 @@ function update(){
   if(moveRight) dog.x += dog.speed;
   dog.x = clamp(dog.x, 0, WORLD_W - dog.w);
 
-  // always enforce height for ALL states (idle, walk, eat, happy, travel)
-  dog.y = PATH_Y - 260;
+  // 👇 NEW: snap dog vertically so the bottom of the IDLE sprite is on the ground
+  const idleImg = images["dog_idle"];
+  if (idleImg) {
+    const drawH = idleImg.height * DOG_SPRITE_SCALE;
+    // top of sprite = ground - spriteHeight
+    dog.y = GROUND_Y - drawH;
+  }
 
   if(dog.timer > 0) dog.timer--;
   if(dog.timer === 0 && !moveLeft && !moveRight){
@@ -689,6 +698,7 @@ tick();
 travelTo(parks[0]);
 toast("🐶 Welcome! Use Walk buttons (or arrow keys). Tap animals. Collect all 10 landmarks!");
 </script>
+
 
 </body>
 </html>
