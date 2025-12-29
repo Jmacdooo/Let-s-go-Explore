@@ -67,7 +67,9 @@
 <script>
 /* =========================================================
    DOG IS THE SAME (walk + idle, size, ground).
-   New: Side-scrolling world with 10 Yosemite landmarks.
+   Side-scrolling world with 10 Yosemite landmarks.
+   Pet/Feed: heart/bone + bark.
+   Landmarks: spoken name + description for non-readers.
    ========================================================= */
 
 // ---------- canvas ----------
@@ -129,7 +131,7 @@ parks.forEach((p, i) => {
 // update world width so camera clamp is correct
 WORLD_W = parks[parks.length - 1].x + 800;
 
-// ---------- sprite meta (DOG) ----------
+// ---------- sprite + image meta ----------
 const images = {};
 const meta   = {};  // meta[state] = { frameW, frameH, contentHeight, bottomMargin }
 
@@ -194,14 +196,46 @@ function analyzeSprite(state, img, frames){
   };
 }
 
-// DOG SPRITES (same as before: do NOT rename files)
+// DOG SPRITES (same files you already have)
 loadSprite("walk", "dog_walk.png", WALK_FRAMES);
 loadSprite("idle", "dog_idle.png", 1);
 
-// OPTIONAL: later, when you have PNGs, you can do things like:
+// OPTIONAL: later, when you have landmark PNGs, you can do:
 // loadImageAsset("yos_tunnel", "yos_tunnel.png");
 // loadImageAsset("yos_falls", "yos_falls.png");
 // etc.
+
+// ---------- SOUND: bark ----------
+let barkSound = null;
+try {
+  barkSound = new Audio("assets/bark.mp3"); // you add this file
+  barkSound.volume = 0.7;
+} catch(e){
+  console.warn("No bark sound available:", e);
+}
+
+function playBark(){
+  if(!barkSound) return;
+  try{
+    barkSound.currentTime = 0;
+    barkSound.play();
+  } catch(e){
+    console.warn("Could not play bark:", e);
+  }
+}
+
+// ---------- SPEECH: read landmark text ----------
+function speak(text){
+  if(!("speechSynthesis" in window)) return;
+  const synth = window.speechSynthesis;
+  synth.cancel(); // stop any previous speech
+
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.rate = 0.95;
+  utter.pitch = 1.0;
+  utter.volume = 1.0;
+  synth.speak(utter);
+}
 
 // ---------- dog state ----------
 const dog = {
@@ -215,6 +249,10 @@ const dog = {
 let left  = false;
 let right = false;
 
+// interaction state for pet/feed (so it feels real)
+let interactionTimer = 0;      // counts down frames
+let interactionType  = null;   // "pet" or "feed"
+
 // ---------- controls ----------
 const leftBtn  = document.getElementById("leftBtn");
 const rightBtn = document.getElementById("rightBtn");
@@ -227,36 +265,51 @@ function stopMoving(){
   dog.state = "idle";
 }
 
-leftBtn.onclick = function(){
+// Only allow starting walk if not in pet/feed interaction
+function startWalkLeft(){
+  if(interactionTimer > 0) return;
   left  = true;
   right = false;
   dog.dir = -1;
   dog.state = "walk";
-};
-
-rightBtn.onclick = function(){
+}
+function startWalkRight(){
+  if(interactionTimer > 0) return;
   right = true;
   left  = false;
   dog.dir = 1;
   dog.state = "walk";
+}
+
+leftBtn.onclick  = startWalkLeft;
+rightBtn.onclick = startWalkRight;
+
+stopBtn.onclick = function(){
+  interactionTimer = 0;
+  interactionType  = null;
+  stopMoving();
 };
 
-stopBtn.onclick = stopMoving;
-
-// Pet + feed: stop, sit, little message (these are back)
+// Pet + feed: stop, sit, show symbol, bark, ignore walking for a bit
 petBtn.onclick = function(){
   stopMoving();
+  interactionTimer = 120;   // about 2 seconds
+  interactionType  = "pet";
+  playBark();
   showMsg("Your dog loves pets ❤️");
 };
 
 feedBtn.onclick = function(){
   stopMoving();
+  interactionTimer = 120;
+  interactionType  = "feed";
+  playBark();
   showMsg("Yum! Snack time 🍖");
 };
 
 window.addEventListener("keydown", function(e){
-  if(e.key === "ArrowLeft")  leftBtn.onclick();
-  if(e.key === "ArrowRight") rightBtn.onclick();
+  if(e.key === "ArrowLeft")  startWalkLeft();
+  if(e.key === "ArrowRight") startWalkRight();
   if(e.key === " ")          stopBtn.onclick();
 });
 
@@ -269,8 +322,16 @@ function showMsg(text){
 
 // ---------- update ----------
 function update(){
-  // movement in world space
-  if(dog.state === "walk"){
+  // interaction countdown
+  if(interactionTimer > 0){
+    interactionTimer--;
+    if(interactionTimer === 0){
+      interactionType = null;   // back to normal
+    }
+  }
+
+  // movement in world space (only if not in pet/feed interaction)
+  if(dog.state === "walk" && interactionTimer === 0){
     if(left)  dog.x -= dog.speed;
     if(right) dog.x += dog.speed;
   }
@@ -291,7 +352,9 @@ function update(){
       // arrived at this landmark
       stopMoving();
       p.visited = true;
+      const text = `Landmark ${i+1} of ${parks.length}. ${p.name}. ${p.subtitle}.`;
       showMsg(`Landmark ${i+1}/${parks.length}: ${p.name} — ${p.subtitle}`);
+      speak(text);
       break;
     }
   }
@@ -406,7 +469,7 @@ function drawParks(){
   }
 }
 
-// ---------- draw dog (same logic, now in world→screen coords) ----------
+// ---------- draw dog ----------
 function drawDog(){
   const state = (dog.state === "walk") ? "walk" : "idle";
 
@@ -463,6 +526,17 @@ function drawDog(){
     );
   }
   ctx.restore();
+
+  // Pet / Feed icons above head during interaction
+  if(interactionTimer > 0 && interactionType){
+    ctx.font = "32px system-ui";
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
+    const icon = interactionType === "pet" ? "❤️" : "🍖";
+    const iconY = dy - 30; // a bit above head
+    ctx.fillText(icon, gx, iconY);
+    ctx.textAlign = "start";
+  }
 }
 
 // ---------- main loop ----------
