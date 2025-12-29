@@ -25,10 +25,13 @@
     padding:8px 10px;
     border-radius:12px;
     box-shadow:0 4px 12px rgba(0,0,0,.2);
+    display:flex;
+    flex-wrap:wrap;
+    gap:4px;
   }
   button{
     padding:8px 10px;
-    margin:2px;
+    margin:0;
     border-radius:10px;
     border:none;
     cursor:pointer;
@@ -66,10 +69,12 @@
 
 <script>
 /* =========================================================
-   DOG IS THE SAME (walk + idle, size, ground).
-   Side-scrolling world with 10 Yosemite landmarks.
-   Pet/Feed: heart/bone + bark.
-   Landmarks: spoken name + description for non-readers.
+   MY FOREVER DOG — YOSEMITE WORLD
+   - Dog: same walk + idle, same size, same ground.
+   - Side-scrolling world with 10 Yosemite landmarks.
+   - Auto-sit at each landmark.
+   - Pet/Feed: bark + heart/bone.
+   - Voice A (guide) + D (inner dog).
    ========================================================= */
 
 // ---------- canvas ----------
@@ -93,7 +98,7 @@ function dogGroundY(){ return canvas.height - 70; }
 function signGroundY(){ return canvas.height - 150; }
 
 // how tall the *actual dog body* should appear (not whole PNG)
-const DOG_BODY_SCREEN_HEIGHT = 320;   // bump to 350/380 if you want bigger dog
+const DOG_BODY_SCREEN_HEIGHT = 320;   // bump up/down if you want slightly bigger/smaller
 const WALK_FRAMES            = 5;
 
 // ---------- WORLD + CAMERA ----------
@@ -110,16 +115,76 @@ const LANDMARK_SPACING = 700; // distance between landmarks in world pixels
 const START_X          = 600; // first landmark x
 
 const parks = [
-  { name:"Tunnel View",       subtitle:"First glimpse of the whole valley",      imageKey:"yos_tunnel" },
-  { name:"Yosemite Falls",    subtitle:"A huge waterfall crashing down",        imageKey:"yos_falls" },
-  { name:"El Capitan",        subtitle:"A giant granite wall for climbers",     imageKey:"yos_elcap" },
-  { name:"Half Dome",         subtitle:"The famous rounded rock dome",          imageKey:"yos_halfdome" },
-  { name:"Glacier Point",     subtitle:"A lookout high above the valley",       imageKey:"yos_glacier" },
-  { name:"Mirror Lake",       subtitle:"A calm lake that reflects the cliffs",  imageKey:"yos_mirror" },
-  { name:"Mariposa Grove",    subtitle:"A forest of giant sequoia trees",       imageKey:"yos_grove" },
-  { name:"Valley Meadow",     subtitle:"A grassy field for picnics and play",   imageKey:"yos_meadow" },
-  { name:"Vernal Fall",       subtitle:"A misty waterfall with lots of steps",  imageKey:"yos_vernal" },
-  { name:"Tioga Pass",        subtitle:"High country road with lakes and peaks",imageKey:"yos_tioga" }
+  {
+    name:"Tunnel View",
+    subtitle:"First glimpse of the whole valley",
+    imageKey:"yos_tunnel",
+    guideLine:"This is Tunnel View, one of the most famous views in Yosemite Valley.",
+    dogLine:"Everything is so big! I feel tiny, but happy."
+  },
+  {
+    name:"Yosemite Falls",
+    subtitle:"Tall waterfall crashing down",
+    imageKey:"yos_falls",
+    guideLine:"These are Yosemite Falls, some of the tallest waterfalls in North America.",
+    dogLine:"That’s a lot of water. I’ll watch from here so my paws stay dry."
+  },
+  {
+    name:"El Capitan",
+    subtitle:"A giant granite wall",
+    imageKey:"yos_elcap",
+    guideLine:"This is El Capitan, a huge granite wall that climbers love.",
+    dogLine:"Nope. I’m not climbing that. I’ll cheer from the ground!"
+  },
+  {
+    name:"Half Dome",
+    subtitle:"Famous rounded rock dome",
+    imageKey:"yos_halfdome",
+    guideLine:"Half Dome looks like a giant rock sliced right down the middle.",
+    dogLine:"It’s like a huge cookie someone took a bite out of!"
+  },
+  {
+    name:"Glacier Point",
+    subtitle:"High viewpoint over the valley",
+    imageKey:"yos_glacier",
+    guideLine:"From Glacier Point, you can see far across the valley below.",
+    dogLine:"Wow. I can see everything from up here… even good stick spots."
+  },
+  {
+    name:"Mirror Lake",
+    subtitle:"Water reflecting the cliffs",
+    imageKey:"yos_mirror",
+    guideLine:"Mirror Lake sometimes reflects the cliffs like a shiny mirror.",
+    dogLine:"Is that another dog in the water? Oh… it’s just me!"
+  },
+  {
+    name:"Mariposa Grove",
+    subtitle:"Giant sequoia trees",
+    imageKey:"yos_grove",
+    guideLine:"Mariposa Grove is home to giant sequoia trees, thousands of years old.",
+    dogLine:"These trees are older than any human I know. I’ll sniff politely."
+  },
+  {
+    name:"Valley Meadow",
+    subtitle:"Grassy field for picnics",
+    imageKey:"yos_meadow",
+    guideLine:"This meadow is a quiet, grassy place where people rest and play.",
+    dogLine:"This is perfect for rolling in the grass. Don’t tell anyone."
+  },
+  {
+    name:"Vernal Fall",
+    subtitle:"Misty staircase waterfall",
+    imageKey:"yos_vernal",
+    guideLine:"Vernal Fall is reached by a long, misty staircase trail.",
+    dogLine:"So many steps! My paws are ready, but we can just look today."
+  },
+  {
+    name:"Camp 4",
+    subtitle:"Historic climbers’ campground",
+    imageKey:"yos_tioga",
+    guideLine:"Camp 4 is a historic campground where many climbers stay.",
+    dogLine:"We made it! Can we stay here forever and nap under the stars?"
+  }
 ];
 
 // assign world x positions + visited
@@ -142,12 +207,16 @@ function loadSprite(state, filename, frames){
   images[state] = img;
 }
 
-// for future PNGs (photos)
+// for future PNGs (photos for landmarks)
 function loadImageAsset(key, filename){
   const img = new Image();
   img.src = "assets/" + filename;
   images[key] = img;
 }
+
+// (optional) later you can add:
+// loadImageAsset("yos_tunnel", "yos_tunnel.png");
+// etc.
 
 function analyzeSprite(state, img, frames){
   const frameW = img.width / frames;
@@ -196,19 +265,14 @@ function analyzeSprite(state, img, frames){
   };
 }
 
-// DOG SPRITES (same files you already have)
+// DOG SPRITES (same files you already use)
 loadSprite("walk", "dog_walk.png", WALK_FRAMES);
 loadSprite("idle", "dog_idle.png", 1);
-
-// OPTIONAL: later, when you have landmark PNGs, you can do:
-// loadImageAsset("yos_tunnel", "yos_tunnel.png");
-// loadImageAsset("yos_falls", "yos_falls.png");
-// etc.
 
 // ---------- SOUND: bark ----------
 let barkSound = null;
 try {
-  barkSound = new Audio("assets/bark.mp3"); // you add this file
+  barkSound = new Audio("assets/bark.mp3"); // you already added this file
   barkSound.volume = 0.7;
 } catch(e){
   console.warn("No bark sound available:", e);
@@ -224,17 +288,32 @@ function playBark(){
   }
 }
 
-// ---------- SPEECH: read landmark text ----------
-function speak(text){
+// ---------- SPEECH: guide + dog voice ----------
+function speak(text, type){
   if(!("speechSynthesis" in window)) return;
   const synth = window.speechSynthesis;
-  synth.cancel(); // stop any previous speech
-
   const utter = new SpeechSynthesisUtterance(text);
-  utter.rate = 0.95;
-  utter.pitch = 1.0;
-  utter.volume = 1.0;
+
+  if(type === "guide"){
+    utter.rate  = 0.95;
+    utter.pitch = 1.0;
+  } else if(type === "dog"){
+    utter.rate  = 1.05;
+    utter.pitch = 1.2;
+  }
+
   synth.speak(utter);
+}
+
+function speakForLandmark(p, index, total){
+  const guideText = `Landmark ${index} of ${total}. ${p.name}. ${p.guideLine}`;
+  const dogText   = p.dogLine;
+
+  // clear any old queued speech
+  window.speechSynthesis.cancel();
+  // guide then dog (they'll queue)
+  speak(guideText, "guide");
+  speak(dogText, "dog");
 }
 
 // ---------- dog state ----------
@@ -249,7 +328,7 @@ const dog = {
 let left  = false;
 let right = false;
 
-// interaction state for pet/feed (so it feels real)
+// interaction state for pet/feed
 let interactionTimer = 0;      // counts down frames
 let interactionType  = null;   // "pet" or "feed"
 
@@ -301,12 +380,11 @@ petBtn.onclick = function(){
 
 feedBtn.onclick = function(){
   stopMoving();
-  interactionTimer = 120;    // about 2 seconds
+  interactionTimer = 120;
   interactionType  = "feed";
   playBark();
   showMsg("Yum! Snack time 🍖");
 };
-
 
 window.addEventListener("keydown", function(e){
   if(e.key === "ArrowLeft")  startWalkLeft();
@@ -350,12 +428,14 @@ function update(){
     if(p.visited) continue;
 
     if(Math.abs(dogCenter - p.x) < 40 && dog.state === "walk"){
-      // arrived at this landmark
+      // arrived at this landmark → auto-sit
       stopMoving();
       p.visited = true;
-      const text = `Landmark ${i+1} of ${parks.length}. ${p.name}. ${p.subtitle}.`;
-      showMsg(`Landmark ${i+1}/${parks.length}: ${p.name} — ${p.subtitle}`);
-      speak(text);
+
+      const idx = i + 1;
+      const message = `Landmark ${idx}/${parks.length}: ${p.name} — ${p.subtitle}`;
+      showMsg(message);
+      speakForLandmark(p, idx, parks.length);
       break;
     }
   }
@@ -409,7 +489,7 @@ function drawParks(){
     // skip if far offscreen
     if(sx < -250 || sx > canvas.width + 250) continue;
 
-    // --- photo frame ---
+    // --- photo frame (placeholder or PNG) ---
     const photoTop = sg - 150;
     const photoW   = 180;
     const photoH   = 110;
@@ -420,7 +500,6 @@ function drawParks(){
     ctx.strokeStyle = "rgba(0,0,0,0.15)";
     ctx.strokeRect(photoX, photoTop, photoW, photoH);
 
-    // if PNG exists for this landmark, draw it
     const lmImg = images[p.imageKey];
     if(lmImg && lmImg.complete){
       const scale = Math.min((photoW-8)/lmImg.width, (photoH-8)/lmImg.height);
@@ -430,7 +509,7 @@ function drawParks(){
       const iy = photoTop + (photoH - h)/2;
       ctx.drawImage(lmImg, ix, iy, w, h);
     } else {
-      // placeholder mini landscape
+      // placeholder mini landscape (cartoony)
       ctx.fillStyle = "#90e0ef";
       ctx.fillRect(photoX+4, photoTop+4, photoW-8, (photoH/2)-6);
       ctx.fillStyle = "#2a9d8f";
@@ -438,7 +517,7 @@ function drawParks(){
 
       ctx.fillStyle = "#264653";
       ctx.beginPath();
-      ctx.moveTo(sx, photoTop+22);
+      ctx.moveTo(sx, photoTop+24);
       ctx.lineTo(photoX+24, photoTop+photoH-10);
       ctx.lineTo(photoX+photoW-24, photoTop+photoH-10);
       ctx.closePath();
@@ -454,18 +533,18 @@ function drawParks(){
 
     // sign
     ctx.fillStyle = "rgba(255,255,255,0.96)";
-    ctx.fillRect(sx - 120, signTop, 240, 54);
+    ctx.fillRect(sx - 140, signTop, 280, 54);
 
     ctx.fillStyle = "#000";
     ctx.font = "15px system-ui";
-    ctx.fillText(p.name, sx - 112, signTop + 20);
+    ctx.fillText(p.name, sx - 132, signTop + 20);
     ctx.font = "12px system-ui";
-    ctx.fillText(p.subtitle, sx - 112, signTop + 38);
+    ctx.fillText(p.subtitle, sx - 132, signTop + 38);
 
     // visited dot
     ctx.fillStyle = p.visited ? "#2a9d8f" : "#e76f51";
     ctx.beginPath();
-    ctx.arc(sx + 100, signTop + 27, 7, 0, Math.PI*2);
+    ctx.arc(sx + 120, signTop + 27, 7, 0, Math.PI*2);
     ctx.fill();
   }
 }
