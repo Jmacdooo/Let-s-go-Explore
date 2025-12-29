@@ -301,11 +301,12 @@ petBtn.onclick = function(){
 
 feedBtn.onclick = function(){
   stopMoving();
-  interactionTimer = 120;
+  interactionTimer = 120;    // about 2 seconds
   interactionType  = "feed";
   playBark();
   showMsg("Yum! Snack time 🍖");
 };
+
 
 window.addEventListener("keydown", function(e){
   if(e.key === "ArrowLeft")  startWalkLeft();
