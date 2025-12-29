@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>My Forever Dog — Parks</title>
+<title>My Forever Dog — Yosemite Road Trip</title>
 <style>
   body{
     margin:0;
@@ -60,15 +60,14 @@
   <button id="feedBtn">🍖 Feed</button>
 </div>
 
-<div id="msg">Walk to the picture to visit this landmark!</div>
+<div id="msg">Walk to the pictures to visit all 10 Yosemite landmarks!</div>
 
 <canvas id="game"></canvas>
 
 <script>
 /* =========================================================
-   DOG = SAME. 
-   New: each landmark on its own screen.
-   Dog walks from left → photo card on right → sits → next screen.
+   DOG IS THE SAME (walk + idle, size, ground).
+   New: Side-scrolling world with 10 Yosemite landmarks.
    ========================================================= */
 
 // ---------- canvas ----------
@@ -83,69 +82,52 @@ function resize(){
 window.addEventListener("resize", resize);
 resize();
 
-// where the FEET go (dog stands here)
-function dogGroundY(){ return canvas.height - 70; }   // tweak 70 if you want dog higher/lower
-// landmark sign base line
+// helpers
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+
+// where the FEET go (dog stands here, on screen)
+function dogGroundY(){ return canvas.height - 70; }
+// landmark sign base line (on screen)
 function signGroundY(){ return canvas.height - 150; }
 
 // how tall the *actual dog body* should appear (not whole PNG)
 const DOG_BODY_SCREEN_HEIGHT = 320;   // bump to 350/380 if you want bigger dog
 const WALK_FRAMES            = 5;
 
-// ---------- ALL PARKS (10 landmarks each) ----------
-const parkConfigs = [
-  {
-    id: "yosemite",
-    title: "Yosemite National Park",
-    bgKey: "bg_yosemite",   // optional PNG later: assets/bg_yosemite.png
-    landmarks: [
-      { name:"Tunnel View",       subtitle:"First glimpse of the whole valley",      imageKey:"yos_tunnel" },
-      { name:"Yosemite Falls",    subtitle:"A huge waterfall crashing down",        imageKey:"yos_falls" },
-      { name:"El Capitan",        subtitle:"A giant granite wall for climbers",     imageKey:"yos_elcap" },
-      { name:"Half Dome",         subtitle:"The famous rounded rock dome",          imageKey:"yos_halfdome" },
-      { name:"Glacier Point",     subtitle:"A lookout high above the valley",       imageKey:"yos_glacier" },
-      { name:"Mirror Lake",       subtitle:"A calm lake that reflects the cliffs",  imageKey:"yos_mirror" },
-      { name:"Mariposa Grove",    subtitle:"A forest of giant sequoia trees",       imageKey:"yos_grove" },
-      { name:"Valley Meadow",     subtitle:"A grassy field for picnics and play",   imageKey:"yos_meadow" },
-      { name:"Vernal Fall",       subtitle:"A misty waterfall with lots of steps",  imageKey:"yos_vernal" },
-      { name:"Tioga Pass",        subtitle:"High country road with lakes and peaks",imageKey:"yos_tioga" }
-    ]
-  },
-  {
-    id: "yellowstone",
-    title: "Yellowstone National Park",
-    bgKey: "bg_yellowstone",   // optional PNG: assets/bg_yellowstone.png
-    landmarks: [
-      { name:"Old Faithful",          subtitle:"A geyser that erupts on a schedule", imageKey:"yel_oldfaithful" },
-      { name:"Grand Prismatic Spring",subtitle:"A rainbow-colored hot spring",       imageKey:"yel_prismatic" },
-      { name:"Mammoth Terraces",      subtitle:"White and orange stone terraces",    imageKey:"yel_mammoth" },
-      { name:"Yellowstone Lake",      subtitle:"A huge high-mountain lake",          imageKey:"yel_lake" },
-      { name:"Grand Canyon of YNP",   subtitle:"Colorful canyon with waterfalls",    imageKey:"yel_canyon" },
-      { name:"Norris Geyser Basin",   subtitle:"Steaming earth and hot pools",       imageKey:"yel_norris" },
-      { name:"Hayden Valley",         subtitle:"Meadow with bison and birds",        imageKey:"yel_hayden" },
-      { name:"Lamar Valley",          subtitle:"Wildlife valley with wolves",        imageKey:"yel_lamar" },
-      { name:"Tower Fall",            subtitle:"Tall narrow waterfall through rock", imageKey:"yel_tower" },
-      { name:"Fountain Paint Pot",    subtitle:"Bubbling mud pots",                  imageKey:"yel_paintpot" }
-    ]
-  }
+// ---------- WORLD + CAMERA ----------
+let WORLD_W = 5000;   // will be updated after we place landmarks
+const camera = { x: 0 };
+
+// center camera on world X
+function centerCameraOn(x){
+  camera.x = clamp(x - canvas.width / 2, 0, Math.max(0, WORLD_W - canvas.width));
+}
+
+// ---------- Yosemite landmarks (10 total) ----------
+const LANDMARK_SPACING = 700; // distance between landmarks in world pixels
+const START_X          = 600; // first landmark x
+
+const parks = [
+  { name:"Tunnel View",       subtitle:"First glimpse of the whole valley",      imageKey:"yos_tunnel" },
+  { name:"Yosemite Falls",    subtitle:"A huge waterfall crashing down",        imageKey:"yos_falls" },
+  { name:"El Capitan",        subtitle:"A giant granite wall for climbers",     imageKey:"yos_elcap" },
+  { name:"Half Dome",         subtitle:"The famous rounded rock dome",          imageKey:"yos_halfdome" },
+  { name:"Glacier Point",     subtitle:"A lookout high above the valley",       imageKey:"yos_glacier" },
+  { name:"Mirror Lake",       subtitle:"A calm lake that reflects the cliffs",  imageKey:"yos_mirror" },
+  { name:"Mariposa Grove",    subtitle:"A forest of giant sequoia trees",       imageKey:"yos_grove" },
+  { name:"Valley Meadow",     subtitle:"A grassy field for picnics and play",   imageKey:"yos_meadow" },
+  { name:"Vernal Fall",       subtitle:"A misty waterfall with lots of steps",  imageKey:"yos_vernal" },
+  { name:"Tioga Pass",        subtitle:"High country road with lakes and peaks",imageKey:"yos_tioga" }
 ];
 
-// mark all as not visited (for possible future progress)
-parkConfigs.forEach(park => {
-  park.landmarks.forEach(lm => lm.visited = false);
+// assign world x positions + visited
+parks.forEach((p, i) => {
+  p.x = START_X + i * LANDMARK_SPACING;
+  p.visited = false;
 });
 
-// current park + landmark indexes
-let currentParkIndex      = 0;
-let currentLandmarkIndex  = 0;
-
-// helpers
-function getCurrentPark(){
-  return parkConfigs[currentParkIndex];
-}
-function getCurrentLandmark(){
-  return getCurrentPark().landmarks[currentLandmarkIndex];
-}
+// update world width so camera clamp is correct
+WORLD_W = parks[parks.length - 1].x + 800;
 
 // ---------- sprite meta (DOG) ----------
 const images = {};
@@ -158,7 +140,7 @@ function loadSprite(state, filename, frames){
   images[state] = img;
 }
 
-// generic image loader for future PNGs (park backgrounds, landmark photos)
+// for future PNGs (photos)
 function loadImageAsset(key, filename){
   const img = new Image();
   img.src = "assets/" + filename;
@@ -212,19 +194,18 @@ function analyzeSprite(state, img, frames){
   };
 }
 
-// load walking + idle (DOG SPRITES – SAME AS BEFORE)
+// DOG SPRITES (same as before: do NOT rename files)
 loadSprite("walk", "dog_walk.png", WALK_FRAMES);
 loadSprite("idle", "dog_idle.png", 1);
 
-// OPTIONAL: later, when you have PNGs, uncomment and add lines like:
-// loadImageAsset("bg_yosemite", "bg_yosemite.png");
+// OPTIONAL: later, when you have PNGs, you can do things like:
 // loadImageAsset("yos_tunnel", "yos_tunnel.png");
-// loadImageAsset("yel_oldfaithful", "yel_oldfaithful.png");
+// loadImageAsset("yos_falls", "yos_falls.png");
 // etc.
 
-// ---------- dog state (UNCHANGED BASICS) ----------
+// ---------- dog state ----------
 const dog = {
-  x: canvas.width * 0.15,
+  x: 200,          // world x
   dir: 1,
   speed: 7,
   state: "idle",   // "idle" or "walk"
@@ -262,7 +243,7 @@ rightBtn.onclick = function(){
 
 stopBtn.onclick = stopMoving;
 
-// Pet + feed just show idle pose + message for now
+// Pet + feed: stop, sit, little message (these are back)
 petBtn.onclick = function(){
   stopMoving();
   showMsg("Your dog loves pets ❤️");
@@ -286,75 +267,39 @@ function showMsg(text){
   msgTimer = 150;
 }
 
-// When dog finishes a screen, wait a bit then go to next
-let advanceTimer = 0;
-
-function goToNextScreen(){
-  const park = getCurrentPark();
-
-  if(currentLandmarkIndex < park.landmarks.length - 1){
-    currentLandmarkIndex++;
-    const next = getCurrentLandmark();
-    dog.x = canvas.width * 0.15;
-    dog.state = "idle";
-    left = right = false;
-    showMsg(`Next in ${park.title}: ${next.name} — walk to the picture!`);
-  } else if(currentParkIndex < parkConfigs.length - 1){
-    // next park
-    currentParkIndex++;
-    currentLandmarkIndex = 0;
-    const newPark = getCurrentPark();
-    dog.x = canvas.width * 0.15;
-    dog.state = "idle";
-    left = right = false;
-    showMsg(`New park: ${newPark.title}! Walk to the picture to start.`);
-  } else {
-    // all done
-    showMsg("You visited every landmark in every park! 🎉");
-  }
-}
-
 // ---------- update ----------
 function update(){
-  // move dog
+  // movement in world space
   if(dog.state === "walk"){
     if(left)  dog.x -= dog.speed;
     if(right) dog.x += dog.speed;
   }
 
-  // clamp dog on screen
-  dog.x = Math.max(60, Math.min(canvas.width - 60, dog.x));
+  // clamp dog to world
+  dog.x = clamp(dog.x, 50, WORLD_W - 50);
 
-  const park = getCurrentPark();
-  const landmark = getCurrentLandmark();
+  // camera follows dog
+  centerCameraOn(dog.x);
 
-  // GOAL position (about 20-ish steps away)
-  const goalX = canvas.width * 0.75;   // dog starts at 0.15 * width
+  // check landmarks (in world space)
+  const dogCenter = dog.x;
+  for(let i = 0; i < parks.length; i++){
+    const p = parks[i];
+    if(p.visited) continue;
 
-  // if walking and not already queued to advance
-  if(dog.state === "walk" && advanceTimer === 0){
-    if(dog.x >= goalX - 10){
-      // arrive at landmark: SIT (idle) + mark visited + show text
+    if(Math.abs(dogCenter - p.x) < 40 && dog.state === "walk"){
+      // arrived at this landmark
       stopMoving();
-      landmark.visited = true;
-      const idx = currentLandmarkIndex;
-      showMsg(`Landmark ${idx+1}/${park.landmarks.length}: ${landmark.name} — ${landmark.subtitle}`);
-      // after short pause, auto-move to next screen
-      advanceTimer = 90; // ~1.5 seconds
-    }
-  }
-
-  if(advanceTimer > 0){
-    advanceTimer--;
-    if(advanceTimer === 0){
-      goToNextScreen();
+      p.visited = true;
+      showMsg(`Landmark ${i+1}/${parks.length}: ${p.name} — ${p.subtitle}`);
+      break;
     }
   }
 
   if(msgTimer > 0){
     msgTimer--;
     if(msgTimer === 0){
-      msgEl.textContent = "Walk to the picture to visit this landmark!";
+      msgEl.textContent = "Walk to the pictures to visit all 10 Yosemite landmarks!";
     }
   }
 
@@ -363,110 +308,105 @@ function update(){
 
 // ---------- draw helpers ----------
 function drawBackground(){
-  // sky
+  // sky (screen space, not world)
   ctx.fillStyle = "#bde0fe";
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  const currentPark = getCurrentPark();
-  const bgKey = currentPark.bgKey;
-  const bgImg = images[bgKey];
-
-  const headerH = 140;
-  if(bgImg && bgImg.complete){
-    // draw park PNG stretched across top
-    const scale = Math.max(canvas.width / bgImg.width, headerH / bgImg.height);
-    const w = bgImg.width * scale;
-    const h = bgImg.height * scale;
-    const x = (canvas.width - w) / 2;
-    const y = 0;
-    ctx.drawImage(bgImg, x, y, w, h);
-  } else {
-    // fallback colored banner with park title
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.fillRect(0,0,canvas.width,headerH);
-    ctx.fillStyle = "#023047";
-    ctx.font = "20px system-ui";
-    ctx.fillText(currentPark.title, 16, 40);
-    ctx.font = "14px system-ui";
-    ctx.fillText(`Landmark ${currentLandmarkIndex+1}/${currentPark.landmarks.length}`, 16, 70);
+  // simple “mountainy” layer in the back that scrolls slowly
+  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  const hillY = 220;
+  const hillW = 500;
+  const parallax = camera.x * 0.4;
+  for(let i = -2; i < 10; i++){
+    const cx = (i * hillW) - (parallax % hillW);
+    ctx.beginPath();
+    ctx.moveTo(cx, hillY + 80);
+    ctx.lineTo(cx + hillW/2, hillY - 60);
+    ctx.lineTo(cx + hillW, hillY + 80);
+    ctx.closePath();
+    ctx.fill();
   }
 
-  // ground
+  // ground (screen space)
   const gy = dogGroundY();
   ctx.fillStyle = "#90e0ef";
   ctx.fillRect(0, gy, canvas.width, canvas.height - gy);
 }
 
-// ONE landmark per screen: photo on right, dog walks to it
+// draw ALL landmarks, but shifted by camera
 function drawParks(){
   const sg = signGroundY();
   ctx.textBaseline = "middle";
 
-  const park     = getCurrentPark();
-  const p        = getCurrentLandmark();
-  const x        = canvas.width * 0.75;  // where the landmark "lives"
+  for(let i = 0; i < parks.length; i++){
+    const p = parks[i];
+    const sx = p.x - camera.x;    // world → screen
 
-  // --- photo thumbnail frame ---
-  const photoTop = sg - 150;
-  const photoW   = 180;
-  const photoH   = 110;
-  const photoX   = x - photoW/2;
+    // skip if far offscreen
+    if(sx < -250 || sx > canvas.width + 250) continue;
 
-  ctx.fillStyle = "rgba(255,255,255,0.95)";
-  ctx.fillRect(photoX, photoTop, photoW, photoH);
-  ctx.strokeStyle = "rgba(0,0,0,0.15)";
-  ctx.strokeRect(photoX, photoTop, photoW, photoH);
+    // --- photo frame ---
+    const photoTop = sg - 150;
+    const photoW   = 180;
+    const photoH   = 110;
+    const photoX   = sx - photoW/2;
 
-  // if you have a PNG for this landmark, draw it here
-  const lmImg = images[p.imageKey];
-  if(lmImg && lmImg.complete){
-    const scale = Math.min((photoW-8)/lmImg.width, (photoH-8)/lmImg.height);
-    const w = lmImg.width * scale;
-    const h = lmImg.height * scale;
-    const ix = photoX + (photoW - w)/2;
-    const iy = photoTop + (photoH - h)/2;
-    ctx.drawImage(lmImg, ix, iy, w, h);
-  } else {
-    // placeholder mini landscape (sky + ground + mountain)
-    ctx.fillStyle = "#90e0ef";
-    ctx.fillRect(photoX+4, photoTop+4, photoW-8, (photoH/2)-6);
-    ctx.fillStyle = "#2a9d8f";
-    ctx.fillRect(photoX+4, photoTop+photoH/2-2, photoW-8, photoH/2-6);
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.fillRect(photoX, photoTop, photoW, photoH);
+    ctx.strokeStyle = "rgba(0,0,0,0.15)";
+    ctx.strokeRect(photoX, photoTop, photoW, photoH);
 
-    ctx.fillStyle = "#264653";
+    // if PNG exists for this landmark, draw it
+    const lmImg = images[p.imageKey];
+    if(lmImg && lmImg.complete){
+      const scale = Math.min((photoW-8)/lmImg.width, (photoH-8)/lmImg.height);
+      const w = lmImg.width * scale;
+      const h = lmImg.height * scale;
+      const ix = photoX + (photoW - w)/2;
+      const iy = photoTop + (photoH - h)/2;
+      ctx.drawImage(lmImg, ix, iy, w, h);
+    } else {
+      // placeholder mini landscape
+      ctx.fillStyle = "#90e0ef";
+      ctx.fillRect(photoX+4, photoTop+4, photoW-8, (photoH/2)-6);
+      ctx.fillStyle = "#2a9d8f";
+      ctx.fillRect(photoX+4, photoTop+photoH/2-2, photoW-8, photoH/2-6);
+
+      ctx.fillStyle = "#264653";
+      ctx.beginPath();
+      ctx.moveTo(sx, photoTop+22);
+      ctx.lineTo(photoX+24, photoTop+photoH-10);
+      ctx.lineTo(photoX+photoW-24, photoTop+photoH-10);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // --- sign pole + label ---
+    const signTop = sg - 20;
+
+    // pole
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.fillRect(sx - 3, photoTop + photoH, 6, (signTop + 10) - (photoTop + photoH));
+
+    // sign
+    ctx.fillStyle = "rgba(255,255,255,0.96)";
+    ctx.fillRect(sx - 120, signTop, 240, 54);
+
+    ctx.fillStyle = "#000";
+    ctx.font = "15px system-ui";
+    ctx.fillText(p.name, sx - 112, signTop + 20);
+    ctx.font = "12px system-ui";
+    ctx.fillText(p.subtitle, sx - 112, signTop + 38);
+
+    // visited dot
+    ctx.fillStyle = p.visited ? "#2a9d8f" : "#e76f51";
     ctx.beginPath();
-    ctx.moveTo(x, photoTop+22);
-    ctx.lineTo(photoX+24, photoTop+photoH-10);
-    ctx.lineTo(photoX+photoW-24, photoTop+photoH-10);
-    ctx.closePath();
+    ctx.arc(sx + 100, signTop + 27, 7, 0, Math.PI*2);
     ctx.fill();
   }
-
-  // --- sign pole + label under photo ---
-  const signTop = sg - 20;
-
-  // pole
-  ctx.fillStyle = "rgba(0,0,0,0.35)";
-  ctx.fillRect(x - 3, photoTop + photoH, 6, (signTop + 10) - (photoTop + photoH));
-
-  // sign
-  ctx.fillStyle = "rgba(255,255,255,0.96)";
-  ctx.fillRect(x - 120, signTop, 240, 54);
-
-  ctx.fillStyle = "#000";
-  ctx.font = "15px system-ui";
-  ctx.fillText(p.name, x - 112, signTop + 20);
-  ctx.font = "12px system-ui";
-  ctx.fillText(p.subtitle, x - 112, signTop + 38);
-
-  // visited dot
-  ctx.fillStyle = p.visited ? "#2a9d8f" : "#e76f51";
-  ctx.beginPath();
-  ctx.arc(x + 100, signTop + 27, 7, 0, Math.PI*2);
-  ctx.fill();
 }
 
-// ---------- draw dog (walk + idle match – SAME AS BEFORE) ----------
+// ---------- draw dog (same logic, now in world→screen coords) ----------
 function drawDog(){
   const state = (dog.state === "walk") ? "walk" : "idle";
 
@@ -495,10 +435,12 @@ function drawDog(){
     frameIndex = Math.floor(dog.frame / 6) % frames;
   }
 
-  const sx = frameIndex * frameW;
+  const sxCrop = frameIndex * frameW;
 
-  const gx = dog.x;
-  const gy = dogGroundY();   // FEET line
+  // world → screen
+  const gxWorld = dog.x;
+  const gx      = gxWorld - camera.x;
+  const gy      = dogGroundY();
 
   const dx = gx - drawW / 2;
   const dy = gy - (drawH - bottomMarginScaled);
@@ -508,14 +450,14 @@ function drawDog(){
     ctx.scale(-1,1);
     ctx.drawImage(
       img,
-      sx, 0, frameW, frameH,
+      sxCrop, 0, frameW, frameH,
       -dx - drawW, dy,
       drawW, drawH
     );
   } else {
     ctx.drawImage(
       img,
-      sx, 0, frameW, frameH,
+      sxCrop, 0, frameW, frameH,
       dx, dy,
       drawW, drawH
     );
