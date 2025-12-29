@@ -1,57 +1,57 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>My Forever Dog — Yosemite Road Trip</title>
-<style>
-  body{
-    margin:0;
-    background:#bde0fe;
-    overflow:hidden;
-    font-family: system-ui, -apple-system, sans-serif;
-  }
-  canvas{
-    display:block;
-    width:100vw;
-    height:100vh;
-  }
-  #controls{
-    position:fixed;
-    left:10px;
-    top:10px;
-    z-index:10;
-    background:rgba(255,255,255,.9);
-    padding:8px 10px;
-    border-radius:12px;
-    box-shadow:0 4px 12px rgba(0,0,0,.2);
-    display:flex;
-    flex-wrap:wrap;
-    gap:4px;
-  }
-  button{
-    padding:8px 10px;
-    margin:0;
-    border-radius:10px;
-    border:none;
-    cursor:pointer;
-    font-weight:600;
-    background:#ffb703;
-  }
-  #msg{
-    position:fixed;
-    left:50%;
-    bottom:12px;
-    transform:translateX(-50%);
-    background:rgba(255,255,255,.95);
-    padding:8px 14px;
-    border-radius:14px;
-    box-shadow:0 4px 12px rgba(0,0,0,.2);
-    font-size:14px;
-    max-width:90vw;
-    text-align:center;
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Forever Dog — Yosemite Road Trip</title>
+  <style>
+    body{
+      margin:0;
+      background:#bde0fe;
+      overflow:hidden;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    canvas{
+      display:block;
+      width:100vw;
+      height:100vh;
+    }
+    #controls{
+      position:fixed;
+      left:10px;
+      top:10px;
+      z-index:10;
+      background:rgba(255,255,255,.9);
+      padding:8px 10px;
+      border-radius:12px;
+      box-shadow:0 4px 12px rgba(0,0,0,.2);
+      display:flex;
+      flex-wrap:wrap;
+      gap:4px;
+    }
+    button{
+      padding:8px 10px;
+      margin:0;
+      border-radius:10px;
+      border:none;
+      cursor:pointer;
+      font-weight:600;
+      background:#ffb703;
+    }
+    #msg{
+      position:fixed;
+      left:50%;
+      bottom:12px;
+      transform:translateX(-50%);
+      background:rgba(255,255,255,.95);
+      padding:8px 14px;
+      border-radius:14px;
+      box-shadow:0 4px 12px rgba(0,0,0,.2);
+      font-size:14px;
+      max-width:90vw;
+      text-align:center;
+    }
+  </style>
 </head>
 <body>
 
@@ -68,14 +68,9 @@
 <canvas id="game"></canvas>
 
 <script>
-/* =========================================================
-   MY FOREVER DOG — YOSEMITE WORLD
-   - Dog: same walk + idle, same size, same ground.
-   - Side-scrolling world with 10 Yosemite landmarks.
-   - Auto-sit at each landmark.
-   - Pet/Feed: bark + heart/bone.
-   - Voice A (guide) + D (inner dog).
-   ========================================================= */
+// =========================================================
+//  MY FOREVER DOG — YOSEMITE WORLD
+// =========================================================
 
 // ---------- canvas ----------
 const canvas = document.getElementById("game");
@@ -89,7 +84,6 @@ function resize(){
 window.addEventListener("resize", resize);
 resize();
 
-// helpers
 function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
 
 // where the FEET go (dog stands here, on screen)
@@ -98,21 +92,20 @@ function dogGroundY(){ return canvas.height - 70; }
 function signGroundY(){ return canvas.height - 150; }
 
 // how tall the *actual dog body* should appear (not whole PNG)
-const DOG_BODY_SCREEN_HEIGHT = 320;   // bump up/down if you want slightly bigger/smaller
+const DOG_BODY_SCREEN_HEIGHT = 320;
 const WALK_FRAMES            = 5;
 
 // ---------- WORLD + CAMERA ----------
-let WORLD_W = 5000;   // will be updated after we place landmarks
+let WORLD_W = 5000;
 const camera = { x: 0 };
 
-// center camera on world X
 function centerCameraOn(x){
   camera.x = clamp(x - canvas.width / 2, 0, Math.max(0, WORLD_W - canvas.width));
 }
 
-// ---------- Yosemite landmarks (10 total) ----------
-const LANDMARK_SPACING = 700; // distance between landmarks in world pixels
-const START_X          = 600; // first landmark x
+// ---------- Yosemite landmarks ----------
+const LANDMARK_SPACING = 700;
+const START_X          = 600;
 
 const parks = [
   {
@@ -181,24 +174,22 @@ const parks = [
   {
     name:"Camp 4",
     subtitle:"Historic climbers’ campground",
-    imageKey:"yos_tioga",
+    imageKey:"yos_camp4",
     guideLine:"Camp 4 is a historic campground where many climbers stay.",
     dogLine:"We made it! Can we stay here forever and nap under the stars?"
   }
 ];
 
-// assign world x positions + visited
 parks.forEach((p, i) => {
   p.x = START_X + i * LANDMARK_SPACING;
   p.visited = false;
 });
 
-// update world width so camera clamp is correct
 WORLD_W = parks[parks.length - 1].x + 800;
 
 // ---------- sprite + image meta ----------
 const images = {};
-const meta   = {};  // meta[state] = { frameW, frameH, contentHeight, bottomMargin }
+const meta   = {};
 
 function loadSprite(state, filename, frames){
   const img = new Image();
@@ -207,16 +198,14 @@ function loadSprite(state, filename, frames){
   images[state] = img;
 }
 
-// for future PNGs (photos for landmarks)
 function loadImageAsset(key, filename){
   const img = new Image();
   img.src = "assets/" + filename;
   images[key] = img;
 }
 
-// (optional) later you can add:
+// later when you have art:
 // loadImageAsset("yos_tunnel", "yos_tunnel.png");
-// etc.
 
 function analyzeSprite(state, img, frames){
   const frameW = img.width / frames;
@@ -237,7 +226,7 @@ function analyzeSprite(state, img, frames){
     for(let x=0;x<frameW;x++){
       const idx = (y*frameW + x)*4;
       const alpha = data[idx+3];
-      if(alpha > 10){ // not transparent
+      if(alpha > 10){
         if(y < top)    top = y;
         if(y > bottom) bottom = y;
       }
@@ -245,37 +234,27 @@ function analyzeSprite(state, img, frames){
   }
 
   if(bottom === -1){
-    // empty fallback
-    meta[state] = {
-      frameW, frameH,
-      contentHeight: frameH,
-      bottomMargin: 0
-    };
+    meta[state] = { frameW, frameH, contentHeight: frameH, bottomMargin: 0 };
     return;
   }
 
   const contentHeight = bottom - top + 1;
   const bottomMargin  = (frameH - 1) - bottom;
 
-  meta[state] = {
-    frameW,
-    frameH,
-    contentHeight,
-    bottomMargin
-  };
+  meta[state] = { frameW, frameH, contentHeight, bottomMargin };
 }
 
-// DOG SPRITES (same files you already use)
+// load dog sprites
 loadSprite("walk", "dog_walk.png", WALK_FRAMES);
 loadSprite("idle", "dog_idle.png", 1);
 
 // ---------- SOUND: bark ----------
 let barkSound = null;
 try {
-  barkSound = new Audio("assets/bark.mp3"); // you already added this file
+  barkSound = new Audio("assets/bark.mp3");
   barkSound.volume = 0.7;
 } catch(e){
-  console.warn("No bark sound available:", e);
+  console.warn("No bark sound:", e);
 }
 
 function playBark(){
@@ -297,7 +276,7 @@ function initVoices(){
   const voices = window.speechSynthesis.getVoices();
   if (!voices || !voices.length) return;
 
-  // Try to pick a calm female-ish English voice for GUIDE
+  // calm female-ish English voice for GUIDE
   guideVoice =
     voices.find(v =>
       v.lang.startsWith("en") &&
@@ -306,7 +285,7 @@ function initVoices(){
     voices.find(v => v.lang.startsWith("en")) ||
     voices[0];
 
-  // Try to pick a DIFFERENT English-ish voice for DOG
+  // DIFFERENT English-ish voice for DOG
   dogVoice =
     voices.find(v =>
       v !== guideVoice &&
@@ -315,14 +294,12 @@ function initVoices(){
     ) ||
     voices.find(v => v !== guideVoice && v.lang.startsWith("en")) ||
     voices.find(v => v !== guideVoice) ||
-    guideVoice; // last resort
+    guideVoice;
 
-  // Debug in Chrome DevTools if you ever want:
   console.log("Guide voice:", guideVoice && guideVoice.name);
   console.log("Dog voice:", dogVoice && dogVoice.name);
 }
 
-// Chrome loads voices async
 if ("speechSynthesis" in window) {
   window.speechSynthesis.onvoiceschanged = initVoices;
   initVoices();
@@ -339,9 +316,8 @@ function speak(text, type){
     utter.pitch = 1.0;
   } else if(type === "dog"){
     utter.voice = dogVoice || guideVoice || null;
-    // Make dog REALLY sound different
-    utter.rate  = 1.3;   // faster
-    utter.pitch = 1.8;   // much higher
+    utter.rate  = 1.3;
+    utter.pitch = 1.8;
   } else {
     utter.voice = guideVoice || null;
   }
@@ -355,27 +331,14 @@ function speakForLandmark(p, index, total){
   const guideText = `Landmark ${index} of ${total}. ${p.name}. ${p.guideLine}`;
   const dogText   = p.dogLine;
 
-  // stop any previous speech
   window.speechSynthesis.cancel();
-
-  // queue guide first, then dog
-  speak(guideText, "guide");
-  speak(dogText, "dog");
-}
-
-  const guideText = `Landmark ${index} of ${total}. ${p.name}. ${p.guideLine}`;
-  const dogText   = p.dogLine;
-
-  // clear any old queued speech
-  window.speechSynthesis.cancel();
-  // guide then dog (they'll queue)
   speak(guideText, "guide");
   speak(dogText, "dog");
 }
 
 // ---------- dog state ----------
 const dog = {
-  x: 200,          // world x
+  x: 200,
   dir: 1,
   speed: 7,
   state: "idle",   // "idle" or "walk"
@@ -385,9 +348,8 @@ const dog = {
 let left  = false;
 let right = false;
 
-// interaction state for pet/feed
-let interactionTimer = 0;      // counts down frames
-let interactionType  = null;   // "pet" or "feed"
+let interactionTimer = 0;
+let interactionType  = null;
 
 // ---------- controls ----------
 const leftBtn  = document.getElementById("leftBtn");
@@ -401,7 +363,6 @@ function stopMoving(){
   dog.state = "idle";
 }
 
-// Only allow starting walk if not in pet/feed interaction
 function startWalkLeft(){
   if(interactionTimer > 0) return;
   left  = true;
@@ -426,10 +387,9 @@ stopBtn.onclick = function(){
   stopMoving();
 };
 
-// Pet + feed: stop, sit, show symbol, bark, ignore walking for a bit
 petBtn.onclick = function(){
   stopMoving();
-  interactionTimer = 120;   // about 2 seconds
+  interactionTimer = 120;
   interactionType  = "pet";
   playBark();
   showMsg("Your dog loves pets ❤️");
@@ -458,34 +418,27 @@ function showMsg(text){
 
 // ---------- update ----------
 function update(){
-  // interaction countdown
   if(interactionTimer > 0){
     interactionTimer--;
     if(interactionTimer === 0){
-      interactionType = null;   // back to normal
+      interactionType = null;
     }
   }
 
-  // movement in world space (only if not in pet/feed interaction)
   if(dog.state === "walk" && interactionTimer === 0){
     if(left)  dog.x -= dog.speed;
     if(right) dog.x += dog.speed;
   }
 
-  // clamp dog to world
   dog.x = clamp(dog.x, 50, WORLD_W - 50);
-
-  // camera follows dog
   centerCameraOn(dog.x);
 
-  // check landmarks (in world space)
   const dogCenter = dog.x;
   for(let i = 0; i < parks.length; i++){
     const p = parks[i];
     if(p.visited) continue;
 
     if(Math.abs(dogCenter - p.x) < 40 && dog.state === "walk"){
-      // arrived at this landmark → auto-sit
       stopMoving();
       p.visited = true;
 
@@ -507,13 +460,11 @@ function update(){
   dog.frame++;
 }
 
-// ---------- draw helpers ----------
+// ---------- drawing ----------
 function drawBackground(){
-  // sky (screen space, not world)
   ctx.fillStyle = "#bde0fe";
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // simple “mountainy” layer in the back that scrolls slowly
   ctx.fillStyle = "rgba(255,255,255,0.5)";
   const hillY = 220;
   const hillW = 500;
@@ -528,25 +479,21 @@ function drawBackground(){
     ctx.fill();
   }
 
-  // ground (screen space)
   const gy = dogGroundY();
   ctx.fillStyle = "#90e0ef";
   ctx.fillRect(0, gy, canvas.width, canvas.height - gy);
 }
 
-// draw ALL landmarks, but shifted by camera
 function drawParks(){
   const sg = signGroundY();
   ctx.textBaseline = "middle";
 
   for(let i = 0; i < parks.length; i++){
     const p = parks[i];
-    const sx = p.x - camera.x;    // world → screen
+    const sx = p.x - camera.x;
 
-    // skip if far offscreen
     if(sx < -250 || sx > canvas.width + 250) continue;
 
-    // --- photo frame (placeholder or PNG) ---
     const photoTop = sg - 150;
     const photoW   = 180;
     const photoH   = 110;
@@ -566,7 +513,6 @@ function drawParks(){
       const iy = photoTop + (photoH - h)/2;
       ctx.drawImage(lmImg, ix, iy, w, h);
     } else {
-      // placeholder mini landscape (cartoony)
       ctx.fillStyle = "#90e0ef";
       ctx.fillRect(photoX+4, photoTop+4, photoW-8, (photoH/2)-6);
       ctx.fillStyle = "#2a9d8f";
@@ -581,14 +527,11 @@ function drawParks(){
       ctx.fill();
     }
 
-    // --- sign pole + label ---
     const signTop = sg - 20;
 
-    // pole
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.fillRect(sx - 3, photoTop + photoH, 6, (signTop + 10) - (photoTop + photoH));
 
-    // sign
     ctx.fillStyle = "rgba(255,255,255,0.96)";
     ctx.fillRect(sx - 140, signTop, 280, 54);
 
@@ -598,7 +541,6 @@ function drawParks(){
     ctx.font = "12px system-ui";
     ctx.fillText(p.subtitle, sx - 132, signTop + 38);
 
-    // visited dot
     ctx.fillStyle = p.visited ? "#2a9d8f" : "#e76f51";
     ctx.beginPath();
     ctx.arc(sx + 120, signTop + 27, 7, 0, Math.PI*2);
@@ -606,7 +548,6 @@ function drawParks(){
   }
 }
 
-// ---------- draw dog ----------
 function drawDog(){
   const state = (dog.state === "walk") ? "walk" : "idle";
 
@@ -622,14 +563,12 @@ function drawDog(){
   const contentHeight = info.contentHeight;
   const bottomMargin  = info.bottomMargin;
 
-  // scale so the VISIBLE dog body equals DOG_BODY_SCREEN_HEIGHT
   const bodyScale = DOG_BODY_SCREEN_HEIGHT / contentHeight;
 
   const drawW = frameW * bodyScale;
   const drawH = frameH * bodyScale;
   const bottomMarginScaled = bottomMargin * bodyScale;
 
-  // choose frame
   let frameIndex = 0;
   if(state === "walk" && frames > 1){
     frameIndex = Math.floor(dog.frame / 6) % frames;
@@ -637,7 +576,6 @@ function drawDog(){
 
   const sxCrop = frameIndex * frameW;
 
-  // world → screen
   const gxWorld = dog.x;
   const gx      = gxWorld - camera.x;
   const gy      = dogGroundY();
@@ -664,13 +602,12 @@ function drawDog(){
   }
   ctx.restore();
 
-  // Pet / Feed icons above head during interaction
   if(interactionTimer > 0 && interactionType){
     ctx.font = "32px system-ui";
     ctx.textBaseline = "middle";
     ctx.textAlign = "center";
     const icon = interactionType === "pet" ? "❤️" : "🍖";
-    const iconY = dy - 30; // a bit above head
+    const iconY = dy - 30;
     ctx.fillText(icon, gx, iconY);
     ctx.textAlign = "start";
   }
