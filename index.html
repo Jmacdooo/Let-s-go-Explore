@@ -288,24 +288,81 @@ function playBark(){
   }
 }
 
-// ---------- SPEECH: guide + dog voice ----------
+// ---------- SPEECH: guide + dog voice (Chrome-friendly) ----------
+let guideVoice = null;
+let dogVoice   = null;
+
+function initVoices(){
+  if (!("speechSynthesis" in window)) return;
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices || !voices.length) return;
+
+  // Try to pick a calm female-ish English voice for GUIDE
+  guideVoice =
+    voices.find(v =>
+      v.lang.startsWith("en") &&
+      /female|Google US English|Samantha|Serena|Zira|Karen/i.test(v.name + v.voiceURI)
+    ) ||
+    voices.find(v => v.lang.startsWith("en")) ||
+    voices[0];
+
+  // Try to pick a DIFFERENT English-ish voice for DOG
+  dogVoice =
+    voices.find(v =>
+      v !== guideVoice &&
+      v.lang.startsWith("en") &&
+      /child|girl|boy|Google UK English|Google US English/i.test(v.name + v.voiceURI)
+    ) ||
+    voices.find(v => v !== guideVoice && v.lang.startsWith("en")) ||
+    voices.find(v => v !== guideVoice) ||
+    guideVoice; // last resort
+
+  // Debug in Chrome DevTools if you ever want:
+  console.log("Guide voice:", guideVoice && guideVoice.name);
+  console.log("Dog voice:", dogVoice && dogVoice.name);
+}
+
+// Chrome loads voices async
+if ("speechSynthesis" in window) {
+  window.speechSynthesis.onvoiceschanged = initVoices;
+  initVoices();
+}
+
 function speak(text, type){
   if(!("speechSynthesis" in window)) return;
   const synth = window.speechSynthesis;
   const utter = new SpeechSynthesisUtterance(text);
 
   if(type === "guide"){
+    utter.voice = guideVoice || null;
     utter.rate  = 0.95;
     utter.pitch = 1.0;
   } else if(type === "dog"){
-    utter.rate  = 1.05;
-    utter.pitch = 1.2;
+    utter.voice = dogVoice || guideVoice || null;
+    // Make dog REALLY sound different
+    utter.rate  = 1.3;   // faster
+    utter.pitch = 1.8;   // much higher
+  } else {
+    utter.voice = guideVoice || null;
   }
 
   synth.speak(utter);
 }
 
 function speakForLandmark(p, index, total){
+  if (!("speechSynthesis" in window)) return;
+
+  const guideText = `Landmark ${index} of ${total}. ${p.name}. ${p.guideLine}`;
+  const dogText   = p.dogLine;
+
+  // stop any previous speech
+  window.speechSynthesis.cancel();
+
+  // queue guide first, then dog
+  speak(guideText, "guide");
+  speak(dogText, "dog");
+}
+
   const guideText = `Landmark ${index} of ${total}. ${p.name}. ${p.guideLine}`;
   const dogText   = p.dogLine;
 
