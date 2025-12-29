@@ -268,60 +268,33 @@ function playBark(){
 }
 
 /* ---------- SPEECH: smoother guide + clear dog ---------- */
-let guideVoice = null;
-let dogVoice   = null;
-
-function initVoices(){
-  if (!("speechSynthesis" in window)) return;
-  const voices = speechSynthesis.getVoices();
-
-  if (!voices.length) return;
-
-  // Pick more natural voices in Chrome
-  guideVoice =
-      voices.find(v => v.name.includes("Google UK English Female")) ||
-      voices.find(v => v.name.includes("Google US English")) ||
-      voices.find(v => v.lang.startsWith("en")) ||
-      voices[0];
-
-  // Dog voice — clear but different
-  dogVoice =
-      voices.find(v => v.name.includes("Google UK English Male")) ||
-      voices.find(v => v !== guideVoice && v.lang.startsWith("en")) ||
-      guideVoice;
-}
-
-speechSynthesis.onvoiceschanged = initVoices;
-initVoices();
-
-// Speak — improved clarity
-function speak(text, who="guide"){
-  if (!window.speechSynthesis) return;
-
-  const u = new SpeechSynthesisUtterance(text);
-  u.voice = (who === "dog" ? dogVoice : guideVoice);
-
-  if(who === "guide"){
-    u.rate  = 0.9;   // slower
-    u.pitch = 0.95;  // calmer
-  } else {
-    u.rate  = 1.05;  // slight faster, still clear
-    u.pitch = 1.3;   // slightly higher but NOT squeaky
-  }
-
-  speechSynthesis.cancel();
-  speechSynthesis.speak(u);
-}
-
-// For each landmark — shorter + clearer dog line
 function speakForLandmark(p, index, total){
-  speak(`You're now at landmark ${index} of ${total}: ${p.name}. ${p.guideLine}`, "guide");
+  if (!("speechSynthesis" in window)) return;
 
-  // Dog only reacts with short lines
-  setTimeout(()=>{
-    speak(p.dogLine, "dog");
-  }, 1200);
+  const synth = window.speechSynthesis;
+  synth.cancel(); // stop any previous speech
+
+  const guideText = `Landmark ${index} of ${total}. ${p.name}. ${p.guideLine}`;
+  const dogText   = p.dogLine;
+
+  // GUIDE
+  const guideUtter = new SpeechSynthesisUtterance(guideText);
+  guideUtter.voice = guideVoice;
+  guideUtter.rate  = 0.95;
+  guideUtter.pitch = 1.0;
+
+  // DOG (queued for after guide)
+  guideUtter.onend = () => {
+    const dogUtter = new SpeechSynthesisUtterance(dogText);
+    dogUtter.voice = dogVoice;
+    dogUtter.rate  = 1.25;
+    dogUtter.pitch = 1.7;
+    synth.speak(dogUtter);
+  };
+
+  synth.speak(guideUtter);
 }
+
 
 
 // ---------- dog state ----------
