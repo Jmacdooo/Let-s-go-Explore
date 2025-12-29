@@ -268,27 +268,47 @@ function playBark(){
 }
 
 /* ---------- SPEECH: smoother guide + clear dog ---------- */
-function speakForLandmark(p, index, total){
-  if (!("speechSynthesis" in window)) return;
+function speakForLandmark(p, index, total) {
+  // Always at least show text in the message bar
+  const guideText = `Landmark ${index} of ${total}: ${p.name}. ${p.guideLine || ""}`;
+  const dogText   = p.dogLine || "";
+
+  // If you have a showMsg function, use it so something always happens
+  if (typeof showMsg === "function") {
+    showMsg(guideText + (dogText ? " " + dogText : ""));
+  }
+
+  // If speechSynthesis is not available, just stop here
+  if (!("speechSynthesis" in window)) {
+    return;
+  }
 
   const synth = window.speechSynthesis;
-  synth.cancel(); // stop any previous speech
 
-  const guideText = `Landmark ${index} of ${total}. ${p.name}. ${p.guideLine}`;
-  const dogText   = p.dogLine;
+  // If it's already speaking, don't block the game – just cancel and restart this once
+  if (synth.speaking) {
+    synth.cancel();
+  }
 
-  // GUIDE
+  // GUIDE utterance
   const guideUtter = new SpeechSynthesisUtterance(guideText);
-  guideUtter.voice = guideVoice;
+  if (guideVoice) {
+    guideUtter.voice = guideVoice;
+  }
   guideUtter.rate  = 0.95;
   guideUtter.pitch = 1.0;
 
-  // DOG (queued for after guide)
+  // When GUIDE finishes, have DOG speak
   guideUtter.onend = () => {
+    if (!dogText) return;   // no dog line, nothing to say
+
     const dogUtter = new SpeechSynthesisUtterance(dogText);
-    dogUtter.voice = dogVoice;
+    if (dogVoice || guideVoice) {
+      dogUtter.voice = dogVoice || guideVoice;
+    }
     dogUtter.rate  = 1.25;
-    dogUtter.pitch = 1.7;
+    dogUtter.pitch = 1.6;
+
     synth.speak(dogUtter);
   };
 
