@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+<!DOCTYPE html> 
 <html>
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>My Forever Dog — Parks</title>
+<title>My Forever Dog — Yosemite</title>
 <style>
   body{
     margin:0;
@@ -60,14 +60,14 @@
   <button id="feedBtn">🍖 Feed</button>
 </div>
 
-<div id="msg">Walk to visit the 3 national parks!</div>
+<div id="msg">Walk to visit all 10 Yosemite landmarks!</div>
 
 <canvas id="game"></canvas>
 
 <script>
 /* =========================================================
-   WALK + IDLE ONLY
-   Both scaled so the real dog body is same size + same ground.
+   WALK + IDLE ONLY (DOG IS PERFECT, DO NOT TOUCH)
+   10 Yosemite landmarks in one park.
    ========================================================= */
 
 // ---------- canvas ----------
@@ -84,19 +84,33 @@ resize();
 
 // where the FEET go
 function dogGroundY(){ return canvas.height - 70; }   // move dog up/down by changing 70
-// park sign base line
+// landmark sign base line
 function signGroundY(){ return canvas.height - 150; }
 
 // how tall the *actual dog body* should appear (not whole PNG)
 const DOG_BODY_SCREEN_HEIGHT = 320;   // bump to 350/380 if you want bigger
 const WALK_FRAMES            = 5;
 
-// ---------- parks ----------
-const parks = [
-  { name:"Yosemite",    subtitle:"Half Dome",         pos:0.25, visited:false },
-  { name:"Yellowstone", subtitle:"Old Faithful",      pos:0.50, visited:false },
-  { name:"Acadia",      subtitle:"Cadillac Mountain", pos:0.75, visited:false }
+// ---------- landmarks (Yosemite only, 10 total) ----------
+const rawLandmarks = [
+  { name:"Tunnel View",     subtitle:"Valley Vista" },
+  { name:"Yosemite Falls",  subtitle:"Thundering Water" },
+  { name:"El Capitan",      subtitle:"Sheer Granite Wall" },
+  { name:"Half Dome",       subtitle:"Iconic Summit" },
+  { name:"Glacier Point",   subtitle:"Skyline Lookout" },
+  { name:"Mirror Lake",     subtitle:"Reflecting Pool" },
+  { name:"Mariposa Grove",  subtitle:"Giant Sequoias" },
+  { name:"Valley Meadow",   subtitle:"Picnic + Play" },
+  { name:"Vernal Fall",     subtitle:"Misty Trail" },
+  { name:"Tioga Pass",      subtitle:"High Country Road" }
 ];
+
+// even spacing across screen (0..1)
+const parks = rawLandmarks.map((p, i) => ({
+  ...p,
+  pos: (i + 1) / (rawLandmarks.length + 1), // 1/11,2/11,...,10/11
+  visited: false
+}));
 
 // ---------- sprite meta ----------
 const images = {};
@@ -156,7 +170,7 @@ function analyzeSprite(state, img, frames){
   };
 }
 
-// load walking + idle
+// load walking + idle (DOG IMAGES STAY THE SAME)
 loadSprite("walk", "dog_walk.png", WALK_FRAMES);
 loadSprite("idle", "dog_idle.png", 1);
 
@@ -234,21 +248,22 @@ function update(){
   // clamp dog on screen
   dog.x = Math.max(60, Math.min(canvas.width - 60, dog.x));
 
-  // stop at parks
+  // stop at landmarks
   const dogCenter = dog.x;
   for(const p of parks){
     const px = p.pos * canvas.width;
     if(!p.visited && Math.abs(dogCenter - px) < 45 && dog.state === "walk"){
       stopMoving();
       p.visited = true;
-      showMsg("You arrived at " + p.name + " — " + p.subtitle + "!");
+      const index = parks.indexOf(p);
+      showMsg(`Landmark ${index+1}/${parks.length}: ${p.name} — ${p.subtitle}!`);
     }
   }
 
   if(msgTimer > 0){
     msgTimer--;
     if(msgTimer === 0){
-      msgEl.textContent = "Walk to visit the 3 national parks!";
+      msgEl.textContent = "Walk to visit all 10 Yosemite landmarks!";
     }
   }
 
@@ -265,32 +280,62 @@ function drawBackground(){
   ctx.fillRect(0, gy, canvas.width, canvas.height - gy);
 }
 
+// Each landmark gets a little "photo card" + label
 function drawParks(){
   const sg = signGroundY();
   ctx.textBaseline = "middle";
 
   for(const p of parks){
     const x = p.pos * canvas.width;
-    const signTop = sg - 120;
+
+    // --- photo thumbnail placeholder (this is where REAL park pictures can go later) ---
+    const photoTop = sg - 150;
+    const photoW = 140;
+    const photoH = 80;
+    const photoX = x - photoW/2;
+
+    // frame
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.fillRect(photoX, photoTop, photoW, photoH);
+    ctx.strokeStyle = "rgba(0,0,0,0.15)";
+    ctx.strokeRect(photoX, photoTop, photoW, photoH);
+
+    // simple sky + ground inside the photo as a visual
+    ctx.fillStyle = "#90e0ef";
+    ctx.fillRect(photoX+4, photoTop+4, photoW-8, (photoH/2)-6);
+    ctx.fillStyle = "#2a9d8f";
+    ctx.fillRect(photoX+4, photoTop+photoH/2-2, photoW-8, photoH/2-6);
+
+    // tiny "mountain" triangle
+    ctx.fillStyle = "#264653";
+    ctx.beginPath();
+    ctx.moveTo(x, photoTop+18);
+    ctx.lineTo(photoX+20, photoTop+photoH-12);
+    ctx.lineTo(photoX+photoW-20, photoTop+photoH-12);
+    ctx.closePath();
+    ctx.fill();
+
+    // --- sign pole + label under photo ---
+    const signTop = sg - 40;
 
     // pole
     ctx.fillStyle = "rgba(0,0,0,0.35)";
-    ctx.fillRect(x - 3, signTop + 20, 6, 100);
+    ctx.fillRect(x - 3, photoTop + photoH, 6, (signTop + 10) - (photoTop + photoH));
 
     // sign
     ctx.fillStyle = "rgba(255,255,255,0.96)";
-    ctx.fillRect(x - 90, signTop, 180, 44);
+    ctx.fillRect(x - 100, signTop, 200, 46);
 
     ctx.fillStyle = "#000";
     ctx.font = "15px system-ui";
-    ctx.fillText(p.name, x - 80, signTop + 14);
+    ctx.fillText(p.name, x - 92, signTop + 16);
     ctx.font = "12px system-ui";
-    ctx.fillText(p.subtitle, x - 80, signTop + 30);
+    ctx.fillText(p.subtitle, x - 92, signTop + 32);
 
     // visited dot
     ctx.fillStyle = p.visited ? "#2a9d8f" : "#e76f51";
     ctx.beginPath();
-    ctx.arc(x + 70, signTop + 22, 7, 0, Math.PI*2);
+    ctx.arc(x + 80, signTop + 23, 7, 0, Math.PI*2);
     ctx.fill();
   }
 }
