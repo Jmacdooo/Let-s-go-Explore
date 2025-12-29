@@ -66,9 +66,10 @@
 
 <script>
 /* =========================================================
-   BIG DOG, FIXED GROUND, IDLE SMALLER
+   SMART DOG ALIGNMENT: FEET ON GROUND FOR EVERY POSE
    ========================================================= */
 
+// ---------- canvas ----------
 const canvas = document.getElementById("game");
 const ctx    = canvas.getContext("2d");
 const msgEl  = document.getElementById("msg");
@@ -80,24 +81,37 @@ function resize(){
 window.addEventListener("resize", resize);
 resize();
 
-// ---------- ground lines ----------
-function dogGroundY(){  return canvas.height - 40;  }  // 🐶 FEET here (lower)
-function signGroundY(){ return canvas.height - 170; }  // 🚏 sign posts a bit higher
+// ground line for the dog's feet
+function dogGroundY(){ return canvas.height - 60; }  // lower = closer to bottom
 
-// Reference height for idle dog art
-const BASE_DOG_HEIGHT = 380;
+// signs sit a bit higher than dog feet
+function signGroundY(){ return canvas.height - 140; }
+
+// We will size the *actual dog body* (not the whole PNG) to this height,
+// then tweak per-state a bit.
+const DOG_BODY_HEIGHT = 320;     // main body height (you can bump to 350 if needed)
 const FRAME_RATE      = 6;
 const IMG_PATH        = "assets/";
 
-// Per-state extra zoom
-// 👉 Walking size you liked = keep big
-// 👉 Idle too big = make smaller
-const STATE_SCALE = {
-  idle:  0.7,   // 🔽 smaller idle
-  walk:  2.5,   // ✅ keep walking giant
-  eat:   2.0,
-  paw:   2.0,
-  sleep: 2.5
+// Per-state extra size tweaks:
+// - idle a bit bigger
+// - walking slightly bigger
+// - paw a bit smaller so it doesn't sit on the sign
+const STATE_SCALES = {
+  idle:  1.2,
+  walk:  1.1,
+  eat:   1.0,
+  paw:   0.9,
+  sleep: 1.05
+};
+
+// Expected frame counts per sprite
+const STATE_FRAMES = {
+  idle:  1,
+  walk:  5,   // 5-frame strip
+  eat:   1,
+  paw:   1,
+  sleep: 1
 };
 
 // 3 national parks
@@ -107,26 +121,84 @@ const parks = [
   { name:"Acadia",      subtitle:"Cadillac Mountain", pos:0.75, visited:false }
 ];
 
-// ---------- image loading ----------
-const art = {};
-function load(key, filename){
+// ---------- image loading + sprite analysis ----------
+const images = {};
+const spriteMeta = {}; // { state: {frameW, frameH, top, bottom, bottomMargin, contentHeight} }
+
+function loadSprite(state, filename){
   const img = new Image();
   img.src = IMG_PATH + filename;
-  art[key] = img;
+  img.onload = ()=> analyzeSprite(state, img);
+  images[state] = img;
 }
 
-load("idle",  "dog_idle.png");
-load("walk",  "dog_walk.png");   // 5-frame strip
-load("eat",   "dog_eat.png");
-load("paw",   "dog_paw.png");
-load("sleep", "dog_sleep.png");
+// Analyze only the first frame of each sprite to find the actual dog body
+function analyzeSprite(state, img){
+  const frames = STATE_FRAMES[state] || 1;
+  const frameW = img.width / frames;
+  const frameH = img.height;
 
-// ---------- dog ----------
+  const off = document.createElement("canvas");
+  off.width  = frameW;
+  off.height = frameH;
+  const octx = off.getContext("2d");
+
+  octx.clearRect(0,0,frameW,frameH);
+  // draw first frame
+  octx.drawImage(img, 0, 0, frameW, frameH, 0, 0, frameW, frameH);
+
+  const data = octx.getImageData(0,0,frameW,frameH).data;
+
+  let top = frameH, bottom = -1;
+  for(let y=0;y<frameH;y++){
+    for(let x=0;x<frameW;x++){
+      const idx = (y*frameW + x)*4;
+      const alpha = data[idx+3];
+      if(alpha > 10){ // non-transparent-ish
+        if(y < top) top = y;
+        if(y > bottom) bottom = y;
+      }
+    }
+  }
+
+  if(bottom === -1){
+    // totally empty? just fall back
+    spriteMeta[state] = {
+      frameW, frameH,
+      top: 0,
+      bottom: frameH-1,
+      bottomMargin: 0,
+      contentHeight: frameH
+    };
+    return;
+  }
+
+  const bottomMargin = (frameH - 1) - bottom;
+  const contentHeight = bottom - top + 1;
+
+  spriteMeta[state] = {
+    frameW,
+    frameH,
+    top,
+    bottom,
+    bottomMargin,
+    contentHeight
+  };
+}
+
+// load all states
+loadSprite("idle",  "dog_idle.png");
+loadSprite("walk",  "dog_walk.png");
+loadSprite("eat",   "dog_eat.png");
+loadSprite("paw",   "dog_paw.png");
+loadSprite("sleep", "dog_sleep.png");
+
+// ---------- dog state ----------
 const dog = {
   x: canvas.width * 0.15,
   dir: 1,
   speed: 7,
-  state: "idle",    // "idle","walk","eat","paw","sleep"
+  state: "idle",   // "idle","walk","eat","paw","sleep"
   frame: 0
 };
 
@@ -188,16 +260,15 @@ function showMsg(text){
 
 // ---------- update ----------
 function update(){
-  // movement
   if(dog.state === "walk"){
     if(left)  dog.x -= dog.speed;
     if(right) dog.x += dog.speed;
   }
 
-  // clamp to screen
+  // clamp inside screen
   dog.x = Math.max(60, Math.min(canvas.width - 60, dog.x));
 
-  // park stopping
+  // stop at park signs
   const dogCenter = dog.x;
   for(const p of parks){
     const px = p.pos * canvas.width;
@@ -208,7 +279,6 @@ function update(){
     }
   }
 
-  // message timeout
   if(msgTimer > 0){
     msgTimer--;
     if(msgTimer === 0){
@@ -259,42 +329,33 @@ function drawParks(){
   }
 }
 
-// ---------- draw dog ----------
+// ---------- draw dog (auto-align feet) ----------
 function drawDog(){
   let state = dog.state;
-  if(!STATE_SCALE[state]) state = "idle";
+  if(!images[state]) state = "idle";
 
-  let img = art.idle;
-  let frames = 1;
+  const img    = images[state];
+  const meta   = spriteMeta[state];
+  const frames = STATE_FRAMES[state] || 1;
 
-  if(state === "walk"){
-    img    = art.walk || art.idle;
-    frames = 5;
-  } else if(state === "eat"){
-    img = art.eat || art.idle;
-  } else if(state === "paw"){
-    img = art.paw || art.idle;
-  } else if(state === "sleep"){
-    img = art.sleep || art.idle;
+  if(!img || !img.complete){
+    return;
   }
 
-  if(!img || !img.complete) return;
+  // Fallback meta if analyze hasn't finished
+  const frameW = meta ? meta.frameW : img.width / frames;
+  const frameH = meta ? meta.frameH : img.height;
+  const contentHeight = meta ? meta.contentHeight : frameH;
+  const bottomMargin  = meta ? meta.bottomMargin  : 0;
 
-  let fw = img.width / frames;
-  let fh = img.height;
+  // scale so CONTENT (actual dog) has DOG_BODY_HEIGHT
+  const baseScale = DOG_BODY_HEIGHT / contentHeight;
+  const extra     = STATE_SCALES[state] || 1.0;
+  const scale     = baseScale * extra;
 
-  // base scale from PNG height
-  let baseScale = BASE_DOG_HEIGHT / fh;
-
-  // tiny-source brute-force zoom
-  if(fh < 400) baseScale *= 2.5;
-  if(fh < 250) baseScale *= 3.5;
-
-  const extraScale = STATE_SCALE[state] || 1.0;
-  const scale      = baseScale * extraScale;
-
-  const drawW = fw * scale;
-  const drawH = fh * scale;
+  const drawW = frameW * scale;
+  const drawH = frameH * scale;
+  const bottomMarginScaled = bottomMargin * scale;
 
   // walk animation
   let frameIndex = 0;
@@ -302,22 +363,25 @@ function drawDog(){
     frameIndex = Math.floor(dog.frame / FRAME_RATE) % frames;
   }
 
-  const sx = frameIndex * fw;
+  const sx = frameIndex * frameW;
 
-  // feet on ground line
   const gx = dog.x;
-  const gy = dogGroundY();
-  // --- FIX: force feet on the ground ---
-const dx = gx - drawW / 2;
-const dy = gy - (drawH * 0.95);  // LOWER dog until feet touch ground
+  const gy = dogGroundY();           // feet should land here
 
+  // position sprite so content-bottom (not PNG bottom) touches ground
+  const dx = gx - drawW / 2;
+  const dy = gy - (drawH - bottomMarginScaled);
 
   ctx.save();
   if(dog.dir < 0){
     ctx.scale(-1,1);
-    ctx.drawImage(img, sx,0, fw,fh, -dx - drawW, dy, drawW, drawH);
+    ctx.drawImage(img, sx,0, frameW,frameH,
+                  -dx - drawW, dy,
+                  drawW, drawH);
   } else {
-    ctx.drawImage(img, sx,0, fw,fh, dx, dy, drawW, drawH);
+    ctx.drawImage(img, sx,0, frameW,frameH,
+                  dx, dy,
+                  drawW, drawH);
   }
   ctx.restore();
 }
@@ -333,7 +397,6 @@ function loop(){
 }
 loop();
 </script>
-
 
 </body>
 </html>
