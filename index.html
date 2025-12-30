@@ -456,7 +456,7 @@ function drawDog(){
   const info = meta[state];
   if(!img || !img.complete || !info) return;
 
-  const frames = (state === "walk") ? WALK_FRAMES : 1;
+  const frames = (state === "walk") ? WALK_FRAMES : -1;
   const frameW = info.frameW;
   const frameH = info.frameH;
   const contentHeight = info.contentHeight;
