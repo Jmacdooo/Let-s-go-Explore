@@ -482,8 +482,11 @@ function drawDog(){
   const dy = gy - (drawH - bottomMarginScaled);
 
   ctx.save();
-  if(dog.dir < 0){
-    ctx.scale(-1,1);
+
+  // Art faces LEFT by default.
+  // Don't flip when dir = -1 (left); flip when dir = 1 (right).
+  if (dog.dir === 1) {
+    ctx.scale(-1, 1);
     ctx.drawImage(
       img,
       sx, 0, frameW, frameH,
@@ -498,8 +501,9 @@ function drawDog(){
       drawW, drawH
     );
   }
+
   ctx.restore();
-}
+
 
 // ---------- main loop ----------
 function loop(){
