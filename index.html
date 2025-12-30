@@ -147,29 +147,39 @@ function update(dt){
 // DRAW
 // ========================================================
 function draw(){
-  // background
-  if(bg.complete) ctx.drawImage(bg,0,0,canvas.width,canvas.height);
-  else {ctx.fillStyle="#87CEEB";ctx.fillRect(0,0,canvas.width,canvas.height);}
+  // background fallback
+  if(bg.complete && bg.naturalWidth > 0){
+    ctx.drawImage(bg,0,0,canvas.width,canvas.height);
+  } else {
+    // if yosemite not loaded: soft sky
+    const sky = ctx.createLinearGradient(0,0,0,canvas.height);
+    sky.addColorStop(0,"#87CEEB");
+    sky.addColorStop(1,"#E0F6FF");
+    ctx.fillStyle = sky;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+  }
 
-  // ground visibility strip
-  ctx.fillStyle="rgba(255,255,255,.25)";
-  ctx.fillRect(0,canvas.height-80,canvas.width,80);
+  // ground strip (makes dog look like standing)
+  ctx.fillStyle="rgba(255,255,255,0.3)";
+  ctx.fillRect(0, canvas.height-80, canvas.width, 100);
 
-  // dog
-  if(dogImg.complete){
+  // draw dog
+  if(dogImg.complete && dogImg.naturalWidth>0){
     const sx = dog.frame * W;
     const dx = dog.x - (W*SCALE)/2;
     const dy = dog.y;
 
     ctx.save();
-
-    // 🔥 FIX: your sprite FACES LEFT → flip ONLY when walking RIGHT
-    if(dog.dir===1){
+    if(dog.dir===1){ // flip when going RIGHT
       ctx.scale(-1,1);
-      ctx.drawImage(dogImg, sx,0, W,H, -(dx + W*SCALE), dy, W*SCALE,H*SCALE);
+      ctx.drawImage(dogImg, sx,0,W,H, -(dx+W*SCALE), dy, W*SCALE,H*SCALE);
     } else {
-      ctx.drawImage(dogImg, sx,0, W,H, dx, dy, W*SCALE,H*SCALE);
+      ctx.drawImage(dogImg, sx,0,W,H, dx,dy, W*SCALE,H*SCALE);
     }
+    ctx.restore();
+  }
+}
+
 
     ctx.restore();
   }
