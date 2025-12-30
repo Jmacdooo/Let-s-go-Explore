@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>My Forever Dog — Yosemite Landmarks</title>
+<title>My Forever Dog — Simple Yosemite Walk</title>
 <style>
   body{
     margin:0;
@@ -38,7 +38,7 @@
     cursor:pointer;
   }
 
-  /* Pet / Feed */
+  /* Pet / Feed controls */
   #care{
     position:fixed;
     bottom:10px;
@@ -76,19 +76,6 @@
     max-width:90%;
     text-align:center;
   }
-
-  /* Simple visited counter */
-  #progress{
-    position:fixed;
-    top:10px;
-    right:10px;
-    z-index:20;
-    background:#fff;
-    padding:6px 10px;
-    border-radius:10px;
-    box-shadow:0 4px 12px rgba(0,0,0,.25);
-    font-size:13px;
-  }
 </style>
 </head>
 <body>
@@ -104,19 +91,17 @@
   <button id="feedBtn">🍖 Feed</button>
 </div>
 
-<div id="progress">Visited: 0 / 3 landmarks</div>
-<div id="msg">Walk to explore Yosemite with your dog!</div>
+<div id="msg">If you see this text, the game is running. Try walking your dog!</div>
 
 <canvas id="game"></canvas>
 
 <script>
 // --------------------------------------------------
-// Canvas setup
+// BASIC CANVAS SETUP
 // --------------------------------------------------
 const canvas = document.getElementById("game");
 const ctx    = canvas.getContext("2d");
 const msgEl  = document.getElementById("msg");
-const progressEl = document.getElementById("progress");
 
 function resize(){
   canvas.width  = window.innerWidth;
@@ -126,97 +111,44 @@ function resize(){
 window.addEventListener("resize", resize);
 resize();
 
-function dogGroundY(){ return canvas.height - 80; }   // where paws sit
-function signGroundY(){ return canvas.height - 160; } // where sign poles sit
+function dogGroundY(){ return canvas.height - 80; } // where his paws go
 
 // --------------------------------------------------
-// Image helper
+// IMAGES (PATHS MUST MATCH YOUR SCREENSHOT)
 // --------------------------------------------------
-function loadImage(path){
-  const img = new Image();
-  img.src = path;
-  return img;
-}
+// You showed: assets/yosemite.png and assets/dog_walk.png
 
-// --------------------------------------------------
-// Backgrounds (full-screen)
-// --------------------------------------------------
-const bgImages = {
-  main:        loadImage("assets/yosemite.png"),
-  half_dome:   loadImage("assets/parks/half_dome.png"),
-  yose_falls:  loadImage("assets/parks/yosemite_falls.png"),
-  tunnel_view: loadImage("assets/parks/tunnel_view.png")
-};
+const bgImg  = new Image();
+bgImg.src    = "assets/yosemite.png";
 
-let currentBgKey = "main"; // which background to show
+const dogImg = new Image();
+dogImg.src   = "assets/dog_walk.png";
 
 // --------------------------------------------------
-// Dog sprite (6-frame strip)
+// DOG SPRITE SETTINGS (6-FRAME STRIP, FACING RIGHT)
 // --------------------------------------------------
-const dogImg = loadImage("assets/dog_walk.png"); // your walking strip
+const DOG_FRAMES   = 6;
+const DOG_FRAME_W  = 256;    // width of one dog frame
+const DOG_FRAME_H  = 256;    // height of one dog frame
+const DOG_SCALE    = 0.8;    // size on screen
+const DOG_SPEED    = 260;    // pixels per second
+const DOG_ANIM_FPS = 8;      // animation speed
 
-let DOG_FRAMES = 6;
-let DOG_W = 256;
-let DOG_H = 256;
-const DOG_SCALE = 0.8;
-const DOG_SPEED = 260;   // px per second
-const DOG_ANIM_FPS = 8;  // frames per second
-
-dogImg.onload = () => {
-  DOG_W = dogImg.width / DOG_FRAMES;
-  DOG_H = dogImg.height;
-  placeDogOnGround();
-};
-
-// Dog state
 const dog = {
   x: 200,
   y: 0,
-  dir: 1,       // 1 = right, -1 = left; SPRITE FACES RIGHT BY DEFAULT
-  state: "idle",// "idle" or "walk"
+  dir: 1,        // 1 = RIGHT, -1 = LEFT — your art FACES RIGHT by default
+  state: "idle", // "idle" or "walk"
   frame: 0,
   frameTime: 0
 };
 
 function placeDogOnGround(){
-  dog.y = dogGroundY() - DOG_H * DOG_SCALE;
+  dog.y = dogGroundY() - DOG_FRAME_H * DOG_SCALE;
 }
 
 // --------------------------------------------------
-// Landmarks (signs + background key)
-// --------------------------------------------------
-const parks = [
-  {
-    id:"half_dome",
-    name:"Half Dome",
-    subtitle:"Yosemite",
-    pos:0.25,
-    bgKey:"half_dome",
-    visited:false,
-    message:"This is Half Dome, a huge granite rock shaped by glaciers."
-  },
-  {
-    id:"yose_falls",
-    name:"Yosemite Falls",
-    subtitle:"Upper & Lower Falls",
-    pos:0.55,
-    bgKey:"yose_falls",
-    visited:false,
-    message:"These are Yosemite Falls, some of the tallest waterfalls in North America."
-  },
-  {
-    id:"tunnel_view",
-    name:"Tunnel View",
-    subtitle:"Famous lookout",
-    pos:0.85,
-    bgKey:"tunnel_view",
-    visited:false,
-    message:"Tunnel View shows Half Dome, El Capitan, and Bridalveil Fall together."
-  }
-];
-
-// --------------------------------------------------
-// Buttons
+// BUTTONS
 // --------------------------------------------------
 const leftBtn  = document.getElementById("leftBtn");
 const rightBtn = document.getElementById("rightBtn");
@@ -224,85 +156,56 @@ const stopBtn  = document.getElementById("stopBtn");
 const petBtn   = document.getElementById("petBtn");
 const feedBtn  = document.getElementById("feedBtn");
 
-function showMsg(text){
-  msgEl.textContent = text;
-}
+function setMsg(text){ msgEl.textContent = text; }
 
-function stopMoving(){
-  dog.state = "idle";
-}
-
-// walk left
 leftBtn.onclick = () => {
   dog.dir = -1;
   dog.state = "walk";
-  currentBgKey = "main"; // back to trail
-  showMsg("Walking left along the trail…");
+  setMsg("Walking left…");
 };
 
-// walk right
 rightBtn.onclick = () => {
   dog.dir = 1;
   dog.state = "walk";
-  currentBgKey = "main"; // back to trail
-  showMsg("Walking right along the trail…");
+  setMsg("Walking right…");
 };
 
-// stop
 stopBtn.onclick = () => {
-  stopMoving();
-  showMsg("Stopped. Try walking, petting, or feeding your dog.");
+  dog.state = "idle";
+  setMsg("Stopped. Use the arrow buttons or keys to walk.");
 };
 
-// pet
 petBtn.onclick = () => {
-  stopMoving();
-  showMsg("Your dog loves pets ❤️");
+  dog.state = "idle";
+  setMsg("Your dog loves pets ❤️");
 };
 
-// feed
 feedBtn.onclick = () => {
-  stopMoving();
-  showMsg("Yum! Snack time 🍖");
+  dog.state = "idle";
+  setMsg("Yum! Snack time 🍖");
 };
 
 // keyboard shortcuts
 window.addEventListener("keydown", e => {
-  if(e.key === "ArrowLeft")  leftBtn.onclick();
-  if(e.key === "ArrowRight") rightBtn.onclick();
-  if(e.key === " ")          stopBtn.onclick();
+  if (e.key === "ArrowLeft")  leftBtn.onclick();
+  if (e.key === "ArrowRight") rightBtn.onclick();
+  if (e.key === " ")          stopBtn.onclick();
 });
 
 // --------------------------------------------------
-// Landmark handling
-// --------------------------------------------------
-function handleLandmark(p){
-  stopMoving();
-  p.visited = true;
-
-  // switch full background to landmark photo if it exists
-  if (p.bgKey && bgImages[p.bgKey] && bgImages[p.bgKey].naturalWidth > 0) {
-    currentBgKey = p.bgKey;
-  }
-
-  showMsg(p.message);
-}
-
-// --------------------------------------------------
-// Update loop
+// UPDATE
 // --------------------------------------------------
 let lastTime = performance.now();
 
 function update(dt){
-  // move dog
+  // movement
   if (dog.state === "walk") {
     dog.x += dog.dir * DOG_SPEED * dt;
   }
-
   // keep on screen
   dog.x = Math.max(80, Math.min(canvas.width - 80, dog.x));
 
-  // animate legs
+  // animation
   if (dog.state === "walk") {
     dog.frameTime += dt;
     const frameDur = 1 / DOG_ANIM_FPS;
@@ -313,28 +216,15 @@ function update(dt){
   } else {
     dog.frame = 0;
   }
-
-  // landmark detection
-  const dogCenter = dog.x;
-  parks.forEach(p => {
-    const px = p.pos * canvas.width;
-    if (!p.visited && Math.abs(dogCenter - px) < 45 && dog.state === "walk") {
-      handleLandmark(p);
-    }
-  });
-
-  // progress text
-  const visitedCount = parks.filter(p => p.visited).length;
-  progressEl.textContent = `Visited: ${visitedCount} / ${parks.length} landmarks`;
 }
 
 // --------------------------------------------------
-// Draw functions
+// DRAW
 // --------------------------------------------------
 function drawBackground(){
-  let img = bgImages[currentBgKey] || bgImages.main;
-
-  if (img && img.complete && img.naturalWidth > 0) {
+  if (bgImg.complete && bgImg.naturalWidth > 0) {
+    // cover canvas with Yosemite, preserving aspect ratio
+    const img = bgImg;
     const imgW = img.width;
     const imgH = img.height;
     const imgAspect = imgW / imgH;
@@ -354,7 +244,7 @@ function drawBackground(){
     }
     ctx.drawImage(img, drawX, drawY, drawW, drawH);
   } else {
-    // fallback sky if photo missing
+    // fallback sky so it's never just black
     const g = ctx.createLinearGradient(0,0,0,canvas.height);
     g.addColorStop(0,"#87CEEB");
     g.addColorStop(1,"#E0F6FF");
@@ -362,82 +252,46 @@ function drawBackground(){
     ctx.fillRect(0,0,canvas.width,canvas.height);
   }
 
-  // ground strip to make paws clear
+  // soft ground strip
   const gy = dogGroundY();
   ctx.fillStyle = "rgba(255,255,255,0.25)";
   ctx.fillRect(0, gy, canvas.width, canvas.height - gy);
 }
 
-function drawParks(){
-  // only draw signs when we're on the main trail background
-  if (currentBgKey !== "main") return;
-
-  const sg = signGroundY();
-  ctx.textBaseline = "middle";
-
-  parks.forEach(p => {
-    const x = p.pos * canvas.width;
-    const signTop = sg - 120;
-
-    // pole
-    ctx.fillStyle = "rgba(0,0,0,0.35)";
-    ctx.fillRect(x - 3, signTop + 20, 6, 100);
-
-    // sign board
-    ctx.fillStyle = "rgba(255,255,255,0.96)";
-    ctx.fillRect(x - 90, signTop, 180, 44);
-
-    ctx.fillStyle = "#000";
-    ctx.font = "15px system-ui";
-    ctx.fillText(p.name, x - 80, signTop + 14);
-    ctx.font = "12px system-ui";
-    ctx.fillText(p.subtitle, x - 80, signTop + 30);
-
-    ctx.fillStyle = p.visited ? "#2a9d8f" : "#e76f51";
-    ctx.beginPath();
-    ctx.arc(x + 70, signTop + 22, 7, 0, Math.PI * 2);
-    ctx.fill();
-  });
-}
-
 function drawDog(){
   if (!dogImg.complete || dogImg.naturalWidth === 0) return;
 
-  const sx = dog.frame * DOG_W;
+  const sx = dog.frame * DOG_FRAME_W;
   const sy = 0;
 
-  const dw = DOG_W * DOG_SCALE;
-  const dh = DOG_H * DOG_SCALE;
+  const dw = DOG_FRAME_W * DOG_SCALE;
+  const dh = DOG_FRAME_H * DOG_SCALE;
   const dx = dog.x - dw / 2;
   const dy = dog.y;
 
   ctx.save();
-
-  // SPRITE FACES RIGHT by default:
-  //   dir = 1  → draw normally
-  //   dir = -1 → flip horizontally
+  // sprite faces RIGHT by default → flip only when walking LEFT
   if (dog.dir === -1) {
     ctx.scale(-1, 1);
     ctx.drawImage(
       dogImg,
-      sx, sy, DOG_W, DOG_H,
+      sx, sy, DOG_FRAME_W, DOG_FRAME_H,
       -dx - dw, dy,
       dw, dh
     );
   } else {
     ctx.drawImage(
       dogImg,
-      sx, sy, DOG_W, DOG_H,
+      sx, sy, DOG_FRAME_W, DOG_FRAME_H,
       dx, dy,
       dw, dh
     );
   }
-
   ctx.restore();
 }
 
 // --------------------------------------------------
-// Main loop
+// MAIN LOOP
 // --------------------------------------------------
 function loop(time){
   const dt = (time - lastTime) / 1000;
@@ -446,7 +300,6 @@ function loop(time){
   update(dt);
   ctx.clearRect(0,0,canvas.width,canvas.height);
   drawBackground();
-  drawParks();
   drawDog();
 
   requestAnimationFrame(loop);
