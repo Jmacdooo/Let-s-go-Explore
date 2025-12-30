@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>My Forever Dog — Parks</title>
+<title>My Forever Dog — Yosemite Parks</title>
 <style>
   body{
     margin:0;
@@ -77,9 +77,9 @@
 <canvas id="game"></canvas>
 
 <script>
-// ======================================================
-// Simple helpers
-// ======================================================
+// ===================================================
+// Setup canvas
+// ===================================================
 const canvas = document.getElementById("game");
 const ctx    = canvas.getContext("2d");
 const msgEl  = document.getElementById("msg");
@@ -95,43 +95,40 @@ resize();
 function dogGroundY(){ return canvas.height - 70; }
 function signGroundY(){ return canvas.height - 150; }
 
+// ===================================================
+// Image helpers
+// ===================================================
 function loadImage(path){
   const img = new Image();
   img.src = path;
   return img;
 }
 
-// ======================================================
-// Assets
-// ======================================================
+// MAIN Yosemite path background
+const bgMain      = loadImage("assets/yosemite.png");           // your main Yosemite image
+const bgHalfDome  = loadImage("assets/parks/half_dome.png");    // real Half Dome photo
+const bgYoseFalls = loadImage("assets/parks/yosemite_falls.png");
+const bgTunnel    = loadImage("assets/parks/tunnel_view.png");
 
-// MAIN PATH BACKGROUND (Yosemite trail)
-const bgImages = {
-  main:        loadImage("assets/yosemite.png"),               // <- your main Yosemite picture
-  half_dome:   loadImage("assets/parks/half_dome.png"),        // <- close-up photo of Half Dome
-  yose_falls:  loadImage("assets/parks/yosemite_falls.png"),   // <- photo of Yosemite Falls
-  tunnel_view: loadImage("assets/parks/tunnel_view.png")       // <- photo of Tunnel View
-};
-let currentBgKey = "main";
+let currentBg = "main"; // "main", "half_dome", "yose_falls", "tunnel_view"
 
-// DOG SPRITES
-const dogWalkImg = loadImage("assets/dog_walk.png");  // 6-frame strip, faces LEFT
-const dogIdleImg = loadImage("assets/dog_idle.png");  // single frame (optional)
+// DOG sprites (strip faces LEFT)
+const dogWalkImg = loadImage("assets/dog_walk.png");    // 6 frames, 256x256 each
+const dogIdleImg = loadImage("assets/dog_idle.png");    // single frame
 
-// sprite constants
-const DOG_FRAME_W = 256;
-const DOG_FRAME_H = 256;
+const DOG_FRAME_W     = 256;
+const DOG_FRAME_H     = 256;
 const DOG_WALK_FRAMES = 6;
-const DOG_SCALE = 0.8;               // make the dog bigger/smaller
-const DOG_ANIM_SPEED = 6;            // higher = faster leg movement
-const DOG_SPEED = 6;                 // movement speed
+const DOG_SCALE       = 0.8;
+const DOG_SPEED       = 260;   // pixels per second
+const DOG_ANIM_SPEED  = 8;     // frames per second
 
-// BARK SOUND
+// Bark sound
 let barkSound = null;
 try {
   barkSound = new Audio("assets/bark.mp3");
 } catch(e) {
-  console.warn("bark.mp3 missing");
+  console.warn("bark.mp3 not found");
 }
 function playBark(){
   if(!barkSound) return;
@@ -139,12 +136,12 @@ function playBark(){
   barkSound.play().catch(()=>{});
 }
 
-// ======================================================
-// Landmark data (with background keys)
-// ======================================================
+// ===================================================
+// Landmarks
+// ===================================================
 const parks = [
   {
-    id: "half_dome",
+    id:"half_dome",
     name:"Half Dome",
     subtitle:"Yosemite",
     pos:0.30,
@@ -154,7 +151,7 @@ const parks = [
     dogLine:"Whoa! It’s gigantic! Can we climb just a tiny part?"
   },
   {
-    id: "yose_falls",
+    id:"yose_falls",
     name:"Yosemite Falls",
     subtitle:"Upper & Lower Falls",
     pos:0.60,
@@ -164,7 +161,7 @@ const parks = [
     dogLine:"I can almost feel the mist on my nose!"
   },
   {
-    id: "tunnel_view",
+    id:"tunnel_view",
     name:"Tunnel View",
     subtitle:"Famous lookout",
     pos:0.90,
@@ -175,9 +172,9 @@ const parks = [
   }
 ];
 
-// ======================================================
+// ===================================================
 // Speech (guide + dog)
-// ======================================================
+// ===================================================
 let guideVoice = null;
 let dogVoice   = null;
 
@@ -224,4 +221,268 @@ function speakForLandmark(p, index, total){
   g.pitch = 1.0;
 
   g.onend = () => {
-    if (!dogTe
+    if (!dogText) return;
+    const d = new SpeechSynthesisUtterance(dogText);
+    d.voice = dogVoice || guideVoice;
+    d.rate  = 1.1;
+    d.pitch = 1.2;
+    synth.speak(d);
+  };
+
+  synth.speak(g);
+}
+
+// ===================================================
+// Dog + controls
+// ===================================================
+const dog = {
+  x: canvas.width * 0.15,
+  dir: -1,          // -1 = left, 1 = right; art faces LEFT
+  state: "idle",    // "idle" or "walk"
+  frame: 0,
+  frameTime: 0
+};
+
+const leftBtn  = document.getElementById("leftBtn");
+const rightBtn = document.getElementById("rightBtn");
+const stopBtn  = document.getElementById("stopBtn");
+const petBtn   = document.getElementById("petBtn");
+const feedBtn  = document.getElementById("feedBtn");
+
+function stopMoving(){
+  dog.state = "idle";
+}
+
+leftBtn.onclick = () => {
+  dog.dir = -1;
+  dog.state = "walk";
+  currentBg = "main"; // back to Yosemite path
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+};
+
+rightBtn.onclick = () => {
+  dog.dir = 1;
+  dog.state = "walk";
+  currentBg = "main"; // back to Yosemite path
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+};
+
+stopBtn.onclick = () => {
+  stopMoving();
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+};
+
+petBtn.onclick = () => {
+  stopMoving();
+  playBark();
+  showMsg("Your dog loves pets ❤️");
+};
+
+feedBtn.onclick = () => {
+  stopMoving();
+  playBark();
+  showMsg("Yum! Snack time 🍖");
+};
+
+window.addEventListener("keydown", e => {
+  if (e.key === "ArrowLeft")  leftBtn.onclick();
+  if (e.key === "ArrowRight") rightBtn.onclick();
+  if (e.key === " ")          stopBtn.onclick();
+});
+
+// ===================================================
+// Messages + progress
+// ===================================================
+let msgTimer = 0;
+function showMsg(text){
+  msgEl.textContent = text;
+  msgTimer = 240; // about 4 seconds
+}
+
+// ===================================================
+// Update
+// ===================================================
+function handleLandmark(p, idx){
+  stopMoving();
+  p.visited = true;
+
+  // change background to real photo for this landmark
+  if (p.bgKey === "half_dome")      currentBg = "half_dome";
+  else if (p.bgKey === "yose_falls")currentBg = "yose_falls";
+  else if (p.bgKey === "tunnel_view") currentBg = "tunnel_view";
+
+  speakForLandmark(p, idx + 1, parks.length);
+}
+
+let lastTime = performance.now();
+
+function update(dt){
+  // move dog
+  if (dog.state === "walk") {
+    dog.x += dog.dir * DOG_SPEED * dt;
+  }
+
+  // stay on screen
+  dog.x = Math.max(60, Math.min(canvas.width - 60, dog.x));
+
+  // check landmarks
+  const dogCenter = dog.x;
+  parks.forEach((p, i) => {
+    const px = p.pos * canvas.width;
+    if (!p.visited && Math.abs(dogCenter - px) < 45 && dog.state === "walk") {
+      handleLandmark(p, i);
+    }
+  });
+
+  // progress
+  const visitedCount = parks.filter(p => p.visited).length;
+  progressEl.textContent = `Visited: ${visitedCount} / ${parks.length} landmarks`;
+
+  if (msgTimer > 0) {
+    msgTimer--;
+    if (msgTimer === 0) {
+      msgEl.textContent = "Walk to visit the national parks!";
+    }
+  }
+
+  // animation
+  dog.frameTime += dt;
+  if (dog.state === "walk") {
+    const frameDur = 1 / DOG_ANIM_SPEED;
+    while (dog.frameTime >= frameDur) {
+      dog.frameTime -= frameDur;
+      dog.frame = (dog.frame + 1) % DOG_WALK_FRAMES;
+    }
+  } else {
+    dog.frame = 0;
+  }
+}
+
+// ===================================================
+// Drawing
+// ===================================================
+function drawBackground(){
+  let img = null;
+  if (currentBg === "half_dome")      img = bgHalfDome;
+  else if (currentBg === "yose_falls") img = bgYoseFalls;
+  else if (currentBg === "tunnel_view")img = bgTunnel;
+  else                                 img = bgMain;
+
+  if (img && img.complete && img.naturalWidth > 0) {
+    const imgW = img.width;
+    const imgH = img.height;
+    const imgAspect = imgW / imgH;
+    const canvasAspect = canvas.width / canvas.height;
+
+    let drawW, drawH, drawX, drawY;
+    if (canvasAspect > imgAspect) {
+      drawW = canvas.width;
+      drawH = canvas.width / imgAspect;
+      drawX = 0;
+      drawY = (canvas.height - drawH) / 2;
+    } else {
+      drawH = canvas.height;
+      drawW = canvas.height * imgAspect;
+      drawX = (canvas.width - drawW) / 2;
+      drawY = 0;
+    }
+    ctx.drawImage(img, drawX, drawY, drawW, drawH);
+  } else {
+    // fallback: blue sky
+    ctx.fillStyle = "#bde0fe";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+  }
+
+  // light ground strip for clarity
+  const gy = dogGroundY();
+  ctx.fillStyle = "rgba(255,255,255,0.25)";
+  ctx.fillRect(0, gy, canvas.width, canvas.height - gy);
+}
+
+function drawParks(){
+  const sg = signGroundY();
+  ctx.textBaseline = "middle";
+
+  parks.forEach(p => {
+    const x = p.pos * canvas.width;
+    const signTop = sg - 120;
+
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.fillRect(x - 3, signTop + 20, 6, 100);
+
+    ctx.fillStyle = "rgba(255,255,255,0.96)";
+    ctx.fillRect(x - 90, signTop, 180, 44);
+
+    ctx.fillStyle = "#000";
+    ctx.font = "15px system-ui";
+    ctx.fillText(p.name, x - 80, signTop + 14);
+    ctx.font = "12px system-ui";
+    ctx.fillText(p.subtitle, x - 80, signTop + 30);
+
+    ctx.fillStyle = p.visited ? "#2a9d8f" : "#e76f51";
+    ctx.beginPath();
+    ctx.arc(x + 70, signTop + 22, 7, 0, Math.PI*2);
+    ctx.fill();
+  });
+}
+
+function drawDog(){
+  const gy = dogGroundY();
+  const img = (dog.state === "idle" && dogIdleImg.complete)
+    ? dogIdleImg
+    : dogWalkImg;
+
+  if (!img || !img.complete) return;
+
+  let sx = 0;
+  if (img === dogWalkImg) {
+    sx = dog.frame * DOG_FRAME_W;
+  }
+
+  const dw = DOG_FRAME_W * DOG_SCALE;
+  const dh = DOG_FRAME_H * DOG_SCALE;
+  const dx = dog.x - dw / 2;
+  const dy = gy - dh;
+
+  ctx.save();
+
+  // art faces LEFT; flip when walking RIGHT
+  if (dog.dir === 1) {
+    ctx.scale(-1, 1);
+    ctx.drawImage(
+      img,
+      sx, 0, DOG_FRAME_W, DOG_FRAME_H,
+      -dx - dw, dy,
+      dw, dh
+    );
+  } else {
+    ctx.drawImage(
+      img,
+      sx, 0, DOG_FRAME_W, DOG_FRAME_H,
+      dx, dy,
+      dw, dh
+    );
+  }
+
+  ctx.restore();
+}
+
+// ===================================================
+// Main loop
+// ===================================================
+function loop(time){
+  const dt = (time - lastTime) / 1000;
+  lastTime = time;
+
+  update(dt);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawBackground();
+  drawParks();
+  drawDog();
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
