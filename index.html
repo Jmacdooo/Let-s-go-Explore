@@ -1,57 +1,54 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>My Forever Dog — Yosemite Road Trip</title>
-  <style>
-    body{
-      margin:0;
-      background:#bde0fe;
-      overflow:hidden;
-      font-family: system-ui, -apple-system, sans-serif;
-    }
-    canvas{
-      display:block;
-      width:100vw;
-      height:100vh;
-    }
-    #controls{
-      position:fixed;
-      left:10px;
-      top:10px;
-      z-index:10;
-      background:rgba(255,255,255,.9);
-      padding:8px 10px;
-      border-radius:12px;
-      box-shadow:0 4px 12px rgba(0,0,0,.2);
-      display:flex;
-      flex-wrap:wrap;
-      gap:4px;
-    }
-    button{
-      padding:8px 10px;
-      margin:0;
-      border-radius:10px;
-      border:none;
-      cursor:pointer;
-      font-weight:600;
-      background:#ffb703;
-    }
-    #msg{
-      position:fixed;
-      left:50%;
-      bottom:12px;
-      transform:translateX(-50%);
-      background:rgba(255,255,255,.95);
-      padding:8px 14px;
-      border-radius:14px;
-      box-shadow:0 4px 12px rgba(0,0,0,.2);
-      font-size:14px;
-      max-width:90vw;
-      text-align:center;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>My Forever Dog — Parks</title>
+<style>
+  body{
+    margin:0;
+    background:#bde0fe;
+    overflow:hidden;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+  canvas{
+    display:block;
+    width:100vw;
+    height:100vh;
+  }
+  #controls{
+    position:fixed;
+    left:10px;
+    top:10px;
+    z-index:10;
+    background:rgba(255,255,255,.9);
+    padding:8px 10px;
+    border-radius:12px;
+    box-shadow:0 4px 12px rgba(0,0,0,.2);
+  }
+  button{
+    padding:8px 10px;
+    margin:2px;
+    border-radius:10px;
+    border:none;
+    cursor:pointer;
+    font-weight:600;
+    background:#ffb703;
+  }
+  #msg{
+    position:fixed;
+    left:50%;
+    bottom:12px;
+    transform:translateX(-50%);
+    background:rgba(255,255,255,.95);
+    padding:8px 14px;
+    border-radius:14px;
+    box-shadow:0 4px 12px rgba(0,0,0,.2);
+    font-size:14px;
+    max-width:90vw;
+    text-align:center;
+  }
+</style>
 </head>
 <body>
 
@@ -63,19 +60,17 @@
   <button id="feedBtn">🍖 Feed</button>
 </div>
 
-<div id="msg">Walk to the pictures to visit all 10 Yosemite landmarks!</div>
+<div id="msg">Walk to visit the national parks!</div>
 
 <canvas id="game"></canvas>
 
-
 <script>
 /* =========================================================
-   My Forever Dog — Simple Yosemite Demo
-   - Big walking dog (hero size)
-   - 3 parks on a long path
-   - Pet + Feed + Bark
-   - Guide talks, then Dog talks (if voices available)
-   - Game NEVER locks up if speech fails
+   My Forever Dog — Parks (clean version)
+   - Big dog (walk + idle same size, same ground)
+   - Walk, Stop, Pet, Feed
+   - Bark ONLY on Pet + Feed
+   - Guide + Dog voices at landmarks (no freezing)
    ========================================================= */
 
 // ---------- canvas ----------
@@ -90,10 +85,11 @@ function resize(){
 window.addEventListener("resize", resize);
 resize();
 
-// feet ground
+// where the FEET go
 function dogGroundY(){ return canvas.height - 70; }
 function signGroundY(){ return canvas.height - 150; }
 
+// how tall the actual dog body should appear
 const DOG_BODY_SCREEN_HEIGHT = 320;
 const WALK_FRAMES            = 5;
 
@@ -102,7 +98,7 @@ let barkSound = null;
 try {
   barkSound = new Audio("assets/bark.mp3");
 } catch(e) {
-  console.warn("No bark.mp3 yet");
+  console.warn("bark.mp3 not found yet");
 }
 
 function playBark(){
@@ -199,11 +195,11 @@ function analyzeSprite(state, img, frames){
   };
 }
 
-// walking + idle images
+// load walking + idle (your PNGs)
 loadSprite("walk", "dog_walk.png", WALK_FRAMES);
 loadSprite("idle", "dog_idle.png", 1);
 
-// ---------- SPEECH: guide + dog voice (calm + clear) ----------
+// ---------- SPEECH: guide + dog voice ----------
 let guideVoice = null;
 let dogVoice   = null;
 
@@ -219,7 +215,7 @@ function initVoices(){
     voices.find(v => v.lang.startsWith("en")) ||
     voices[0];
 
-  // DOG: different but still English + clear
+  // DOG: different but still English & clear
   dogVoice =
     voices.find(v =>
       v !== guideVoice &&
@@ -239,35 +235,25 @@ if ("speechSynthesis" in window) {
   initVoices();
 }
 
-// 🗣️ GUIDE + DOG for landmarks
 function speakForLandmark(p, index, total) {
-  if (!("speechSynthesis" in window)) {
-    // still show text so kids see something
-    if (typeof showMsg === "function") {
-      const txt = `Landmark ${index} of ${total}: ${p.name}. ${p.guideLine || ""} ${p.dogLine || ""}`;
-      showMsg(txt);
-    }
-    return;
-  }
+  const guideText = `Landmark ${index} of ${total}: ${p.name}. ${p.guideLine || ""}`;
+  const dogText   = p.dogLine || "";
+
+  // Always show text so kids see something, even if speech fails
+  showMsg(guideText + (dogText ? " " + dogText : ""));
+
+  if (!("speechSynthesis" in window)) return;
 
   const synth = window.speechSynthesis;
   synth.cancel(); // stop anything older
 
-  const guideText = `Landmark ${index} of ${total}: ${p.name}. ${p.guideLine || ""}`;
-  const dogText   = p.dogLine || "";
-
-  // also show in text bar
-  if (typeof showMsg === "function") {
-    showMsg(guideText + (dogText ? " " + dogText : ""));
-  }
-
   // GUIDE
   const guideUtter = new SpeechSynthesisUtterance(guideText);
   if (guideVoice) guideUtter.voice = guideVoice;
-  guideUtter.rate  = 0.9;   // a little slower
+  guideUtter.rate  = 0.9;   // slower, clear
   guideUtter.pitch = 1.0;   // natural
 
-  // when GUIDE done, DOG talks
+  // When GUIDE finishes, DOG talks
   guideUtter.onend = () => {
     if (!dogText) return;
     const dogUtter = new SpeechSynthesisUtterance(dogText);
@@ -279,7 +265,6 @@ function speakForLandmark(p, index, total) {
 
   synth.speak(guideUtter);
 }
-
 
 // ---------- dog state ----------
 const dog = {
@@ -305,39 +290,47 @@ function stopMoving(){
   dog.state = "idle";
 }
 
+// WALK LEFT — NO BARK
 leftBtn.onclick = function(){
   left  = true;
   right = false;
   dog.dir = -1;
   dog.state = "walk";
+
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 };
 
+// WALK RIGHT — NO BARK
 rightBtn.onclick = function(){
   right = true;
   left  = false;
   dog.dir = 1;
   dog.state = "walk";
+
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 };
 
+// STOP
 stopBtn.onclick = function(){
   stopMoving();
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 };
 
+// PET — BARK HERE
 petBtn.onclick = function(){
   stopMoving();
   playBark();
   showMsg("Your dog loves pets ❤️");
 };
 
+// FEED — BARK HERE
 feedBtn.onclick = function(){
   stopMoving();
   playBark();
   showMsg("Yum! Snack time 🍖");
 };
 
+// keyboard support
 window.addEventListener("keydown", function(e){
   if(e.key === "ArrowLeft")  leftBtn.onclick();
   if(e.key === "ArrowRight") rightBtn.onclick();
@@ -358,18 +351,18 @@ function update(){
     if(right) dog.x += dog.speed;
   }
 
-  // clamp dog
+  // clamp on screen
   dog.x = Math.max(60, Math.min(canvas.width - 60, dog.x));
 
   // check parks
   const dogCenter = dog.x;
   parks.forEach((p, i) => {
     const px = p.pos * canvas.width;
-    if(!p.visited && Math.abs(dogCenter - px) < 45 && dog.state === "walk"){
+    if (!p.visited && Math.abs(dogCenter - px) < 45 && dog.state === "walk") {
       stopMoving();
       p.visited = true;
-      playBark();
-      speakForLandmark(p, i+1, parks.length);
+      // NO bark here (only Pet/Feed)
+      speakForLandmark(p, i + 1, parks.length);
     }
   });
 
@@ -401,9 +394,11 @@ function drawParks(){
     const x = p.pos * canvas.width;
     const signTop = sg - 120;
 
+    // pole
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.fillRect(x - 3, signTop + 20, 6, 100);
 
+    // sign
     ctx.fillStyle = "rgba(255,255,255,0.96)";
     ctx.fillRect(x - 90, signTop, 180, 44);
 
@@ -422,9 +417,9 @@ function drawParks(){
 
 function drawDog(){
   const state = (dog.state === "walk") ? "walk" : "idle";
+
   const img  = images[state];
   const info = meta[state];
-
   if(!img || !img.complete || !info) return;
 
   const frames = (state === "walk") ? WALK_FRAMES : 1;
@@ -480,7 +475,6 @@ function loop(){
 }
 loop();
 </script>
-
 
 </body>
 </html>
