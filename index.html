@@ -69,8 +69,8 @@
        - Big dog (walk + idle same size, same ground)
        - Walk, Stop, Pet, Feed
        - Bark ONLY on Pet + Feed
-       - Guide + Dog voices at landmarks (no freezing)
-       - Yosemite photo as background
+       - Guide + Dog voices at landmarks
+       - Yosemite photo behind the scene
        ========================================================= */
 
     // ---------- canvas ----------
@@ -111,7 +111,7 @@
       barkSound.play().catch(()=>{});
     }
 
-    // ---------- background image (Yosemite) ----------
+    // ---------- Yosemite background image ----------
     const bgImage = new Image();
     bgImage.src = "assets/yosemite.png";
 
@@ -377,7 +377,7 @@
 
     // ---------- draw helpers ----------
     function drawBackground(){
-      // draw Yosemite photo if loaded; otherwise fallback to blue sky
+      // Yosemite photo if loaded; else blue sky
       if (bgImage.complete && bgImage.naturalWidth > 0) {
         const iw = bgImage.naturalWidth;
         const ih = bgImage.naturalHeight;
@@ -392,7 +392,7 @@
         ctx.fillRect(0,0,canvas.width,canvas.height);
       }
 
-      // ground strip so dog has a clear “floor”
+      // ground strip so the dog has a floor
       const gy = dogGroundY();
       ctx.fillStyle = "#90e0ef";
       ctx.fillRect(0, gy, canvas.width, canvas.height - gy);
