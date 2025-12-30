@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>My Forever Dog — Yosemite Landmarks</title>
+<title>My Forever Dog — Parks</title>
 <style>
   body{
     margin:0;
@@ -48,6 +48,19 @@
     max-width:90vw;
     text-align:center;
   }
+
+  /* NEW: simple progress badge in top-right */
+  #progress{
+    position:fixed;
+    right:10px;
+    top:10px;
+    z-index:10;
+    background:rgba(255,255,255,.9);
+    padding:6px 10px;
+    border-radius:10px;
+    box-shadow:0 4px 12px rgba(0,0,0,.2);
+    font-size:13px;
+  }
 </style>
 </head>
 <body>
@@ -60,24 +73,29 @@
   <button id="feedBtn">🍖 Feed</button>
 </div>
 
-<div id="msg">Walk to visit the Yosemite landmarks!</div>
+<!-- NEW: visited counter -->
+<div id="progress">Visited: 0 / 3 landmarks</div>
+
+<div id="msg">Walk to visit the national parks!</div>
 
 <canvas id="game"></canvas>
 
 <script>
 /* =========================================================
-   My Forever Dog — Yosemite Landmarks (graphics upgrade)
+   My Forever Dog — Parks (clean version + tiny upgrades)
    - Big dog (walk + idle same size, same ground)
    - Walk, Stop, Pet, Feed
    - Bark ONLY on Pet + Feed
    - Guide + Dog voices at landmarks (no freezing)
-   - Custom scenery art for each landmark
+   - NEW: progress badge
+   - NEW: optional Yosemite background image (safe fallback)
    ========================================================= */
 
 // ---------- canvas ----------
 const canvas = document.getElementById("game");
 const ctx    = canvas.getContext("2d");
 const msgEl  = document.getElementById("msg");
+const progressEl = document.getElementById("progress"); // NEW
 
 function resize(){
   canvas.width  = window.innerWidth;
@@ -108,13 +126,21 @@ function playBark(){
   barkSound.play().catch(()=>{});
 }
 
-// ---------- Yosemite landmarks ----------
+// ---------- NEW: optional Yosemite background ----------
+let bgImage = new Image();
+let bgReady = false;
+
+// if this file exists, it will be used; if not, we fall back to plain sky
+bgImage.src = "assets/yosemite_bg.jpg"; // change name if your file is different
+bgImage.onload = () => { bgReady = true; };
+
+// ---------- parks ----------
 const parks = [
   {
     id: "half_dome",
     name:"Half Dome",
     subtitle:"Yosemite",
-    pos:0.20,
+    pos:0.30,
     visited:false,
     guideLine:"This is Half Dome, a huge granite rock shaped by glaciers.",
     dogLine:"Whoa! It’s gigantic! Can we climb just the tiny part?"
@@ -123,7 +149,7 @@ const parks = [
     id: "yose_falls",
     name:"Yosemite Falls",
     subtitle:"Upper & Lower Falls",
-    pos:0.55,
+    pos:0.60,
     visited:false,
     guideLine:"These are Yosemite Falls, some of the tallest waterfalls in North America.",
     dogLine:"I can almost feel the mist on my nose!"
@@ -269,7 +295,7 @@ function speakForLandmark(p, index, total) {
 
 // ---------- dog state ----------
 const dog = {
-  x: canvas.width * 0.10,
+  x: canvas.width * 0.15,
   dir: 1,
   speed: 7,
   state: "idle",   // "idle" or "walk"
@@ -345,22 +371,6 @@ function showMsg(text){
   msgTimer = 240; // about 4 seconds
 }
 
-// ---------- helper: which landmark is closest to dog ----------
-function getActivePark(){
-  let best = parks[0];
-  let bestDist = Infinity;
-  const dogX = dog.x;
-  parks.forEach(p => {
-    const px = p.pos * canvas.width;
-    const d  = Math.abs(dogX - px);
-    if(d < bestDist){
-      bestDist = d;
-      best = p;
-    }
-  });
-  return best;
-}
-
 // ---------- update ----------
 function update(){
   if(dog.state === "walk"){
@@ -383,10 +393,14 @@ function update(){
     }
   });
 
+  // NEW: update visited counter every frame
+  const visitedCount = parks.filter(p => p.visited).length;
+  progressEl.textContent = `Visited: ${visitedCount} / ${parks.length} landmarks`;
+
   if(msgTimer > 0){
     msgTimer--;
     if(msgTimer === 0){
-      msgEl.textContent = "Walk to visit the Yosemite landmarks!";
+      msgEl.textContent = "Walk to visit the national parks!";
     }
   }
 
@@ -394,134 +408,41 @@ function update(){
 }
 
 // ---------- draw helpers ----------
+// NEW: background prefers Yosemite photo, falls back to old sky
 function drawBackground(){
-  // sky gradient that changes slightly by landmark
-  const active = getActivePark();
-  const g = ctx.createLinearGradient(0,0,0,canvas.height * 0.6);
+  if (bgReady) {
+    const imgW = bgImage.width;
+    const imgH = bgImage.height;
+    const imgAspect = imgW / imgH;
+    const canvasAspect = canvas.width / canvas.height;
 
-  if(active.id === "half_dome"){
-    g.addColorStop(0, "#f8d9b2");
-    g.addColorStop(1, "#bde0fe");
-  } else if(active.id === "yose_falls"){
-    g.addColorStop(0, "#cce7ff");
-    g.addColorStop(1, "#bde0fe");
-  } else { // tunnel_view
-    g.addColorStop(0, "#e6dbff");
-    g.addColorStop(1, "#bde0fe");
+    let drawW, drawH, drawX, drawY;
+
+    if (canvasAspect > imgAspect) {
+      // canvas is wider → match width
+      drawW = canvas.width;
+      drawH = canvas.width / imgAspect;
+      drawX = 0;
+      drawY = (canvas.height - drawH) / 2;
+    } else {
+      // canvas is taller → match height
+      drawH = canvas.height;
+      drawW = canvas.height * imgAspect;
+      drawX = (canvas.width - drawW) / 2;
+      drawY = 0;
+    }
+
+    ctx.drawImage(bgImage, drawX, drawY, drawW, drawH);
+  } else {
+    // original simple sky if photo not ready
+    ctx.fillStyle = "#bde0fe";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
   }
 
-  ctx.fillStyle = g;
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  // ground
+  // keep the soft "ground" strip so feet are clear
   const gy = dogGroundY();
-  ctx.fillStyle = "#90e0ef";
+  ctx.fillStyle = "rgba(144,224,239,0.75)";
   ctx.fillRect(0, gy, canvas.width, canvas.height - gy);
-}
-
-// stylized art for each landmark behind the signs
-function drawScenery(){
-  const active = getActivePark();
-  const gy = dogGroundY();
-
-  ctx.save();
-  ctx.translate(canvas.width/2, gy); // center scenes horizontally relative to dog
-
-  if(active.id === "half_dome"){
-    // big dome
-    ctx.fillStyle = "#b8b8b8";
-    ctx.beginPath();
-    ctx.ellipse(-40, -180, 180, 140, 0, Math.PI, 0, true);
-    ctx.fill();
-
-    // cliff base
-    ctx.fillStyle = "#9a9a9a";
-    ctx.fillRect(-180, -180, 240, 160);
-
-    // trees
-    ctx.fillStyle = "#2a9d8f";
-    for(let i=-220; i<=60; i+=40){
-      ctx.beginPath();
-      ctx.moveTo(i, -40);
-      ctx.lineTo(i+14, -80);
-      ctx.lineTo(i+28, -40);
-      ctx.closePath();
-      ctx.fill();
-    }
-
-  } else if(active.id === "yose_falls"){
-    // canyon walls
-    ctx.fillStyle = "#8d99ae";
-    ctx.fillRect(-260, -220, 100, 220);
-    ctx.fillRect(160, -220, 120, 220);
-
-    // waterfall
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(-40, -260, 80, 240);
-    ctx.fillStyle = "#90e0ef";
-    for(let i=-36; i<40; i+=12){
-      ctx.fillRect(i, -260, 6, 240);
-    }
-
-    // splash pool
-    ctx.beginPath();
-    ctx.ellipse(0, -20, 120, 26, 0, 0, Math.PI*2);
-    ctx.fillStyle = "#48cae4";
-    ctx.fill();
-
-    // rocks
-    ctx.fillStyle = "#6c757d";
-    ctx.beginPath();
-    ctx.ellipse(-130, -30, 40, 20, 0, 0, Math.PI*2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(130, -30, 50, 24, 0, 0, Math.PI*2);
-    ctx.fill();
-
-  } else if(active.id === "tunnel_view"){
-    // left cliff (El Capitan-ish)
-    ctx.fillStyle = "#adb5bd";
-    ctx.beginPath();
-    ctx.moveTo(-260, -260);
-    ctx.lineTo(-180, -230);
-    ctx.lineTo(-140, -60);
-    ctx.lineTo(-220, 0);
-    ctx.closePath();
-    ctx.fill();
-
-    // right cliff
-    ctx.fillStyle = "#868e96";
-    ctx.beginPath();
-    ctx.moveTo(220, -260);
-    ctx.lineTo(180, -210);
-    ctx.lineTo(160, -60);
-    ctx.lineTo(240, 0);
-    ctx.closePath();
-    ctx.fill();
-
-    // distant mountains
-    ctx.fillStyle = "#a5d8ff";
-    ctx.beginPath();
-    ctx.moveTo(-40, -230);
-    ctx.lineTo(40, -260);
-    ctx.lineTo(120, -200);
-    ctx.lineTo(0, -180);
-    ctx.closePath();
-    ctx.fill();
-
-    // valley trees
-    ctx.fillStyle = "#2b8a3e";
-    for(let i=-180; i<=180; i+=30){
-      ctx.beginPath();
-      ctx.moveTo(i, -40);
-      ctx.lineTo(i+10, -70);
-      ctx.lineTo(i+20, -40);
-      ctx.closePath();
-      ctx.fill();
-    }
-  }
-
-  ctx.restore();
 }
 
 function drawParks(){
@@ -531,12 +452,6 @@ function drawParks(){
   parks.forEach(p => {
     const x = p.pos * canvas.width;
     const signTop = sg - 120;
-
-    // sign backing "panel"
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.fillRect(x - 110, signTop - 40, 220, 80);
-    ctx.strokeStyle = "rgba(0,0,0,0.15)";
-    ctx.strokeRect(x - 110, signTop - 40, 220, 80);
 
     // pole
     ctx.fillStyle = "rgba(0,0,0,0.35)";
@@ -613,7 +528,6 @@ function loop(){
   update();
   ctx.clearRect(0,0,canvas.width,canvas.height);
   drawBackground();
-  drawScenery();   // 💡 new per-landmark art
   drawParks();
   drawDog();
   requestAnimationFrame(loop);
