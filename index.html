@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>My Forever Dog — Fixed Walking + Ground</title>
+<title>My Forever Dog — National Parks Road Trip</title>
 <style>
   html,body{
     margin:0;
@@ -17,7 +17,9 @@
     width:100vw;
     height:100vh;
   }
-  #ui{
+
+  /* Top bar */
+  #topbar{
     position:fixed;
     left:12px;
     top:12px;
@@ -32,15 +34,14 @@
     flex-wrap:wrap;
     font-size:12px;
   }
-  #ui b{font-size:13px}
-  #ui .pill{
+  #topbar b{font-size:13px}
+  #topbar .pill{
     background:#fff;
     border:1px solid rgba(0,0,0,.12);
     border-radius:999px;
     padding:6px 10px;
   }
-  input[type="file"]{font-size:12px}
-  button{
+  #topbar button{
     border:none;
     border-radius:10px;
     padding:8px 10px;
@@ -49,32 +50,90 @@
     font-weight:700;
     cursor:pointer;
   }
-  button.secondary{
+  #topbar button.secondary{
     background:#fff;
     color:#111;
     border:1px solid rgba(0,0,0,.15);
+  }
+
+  /* Right park checklist */
+  #sidepanel{
+    position:fixed;
+    right:12px;
+    top:12px;
+    z-index:10;
+    background:rgba(255,255,255,.92);
+    box-shadow:0 10px 30px rgba(0,0,0,.15);
+    border-radius:14px;
+    padding:10px 12px;
+    font-size:12px;
+    width:260px;
+  }
+  #sidepanel h3{
+    margin:0 0 8px 0;
+    font-size:13px;
+  }
+  .parkRow{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:6px 0;
+    border-bottom:1px solid rgba(0,0,0,.06);
+  }
+  .parkRow:last-child{border-bottom:none}
+  .box{
+    width:12px;height:12px;
+    border-radius:3px;
+    border:1px solid rgba(0,0,0,.25);
+    display:inline-block;
+  }
+  .box.on{
+    background:rgba(0,180,80,.95);
+    border-color:rgba(0,140,60,.6);
+  }
+
+  /* Hint bubble bottom-left */
+  #hint{
+    position:fixed;
+    left:12px;
+    bottom:12px;
+    z-index:10;
+    background:rgba(255,255,255,.92);
+    box-shadow:0 10px 30px rgba(0,0,0,.15);
+    border-radius:14px;
+    padding:10px 12px;
+    font-size:12px;
+    max-width:520px;
   }
 </style>
 </head>
 <body>
 
-<div id="ui">
-  <b>🐾 Fixed Dog Walk</b>
-  <span class="pill">Arrows / WASD</span>
+<div id="topbar">
+  <b>🐾 My Forever Dog — Road Trip</b>
+  <span class="pill">Move: Arrows / WASD</span>
   <span class="pill">Shift = run</span>
-  <span class="pill">Sprite frames: <b id="framesLabel">6</b></span>
-  <label class="pill">Load sprite:
-    <input id="file" type="file" accept="image/png,image/webp,image/jpeg">
-  </label>
-  <button id="reset" class="secondary">Reset</button>
+  <span class="pill">Tap dog = Pet</span>
+  <button id="btnFeed" class="secondary">Feed</button>
+  <button id="btnPet"  class="secondary">Pet</button>
+  <button id="btnSleep" class="secondary">Sleep</button>
+  <button id="btnReset" class="secondary">Reset</button>
+  <span class="pill">Frames: <b id="framesLabel">6</b></span>
 </div>
+
+<div id="sidepanel">
+  <h3>✅ Parks visited</h3>
+  <div id="parkList"></div>
+</div>
+
+<div id="hint">Loading…</div>
 
 <canvas id="game"></canvas>
 
 <script>
-/* =========================
+/* =======================================================
    CANVAS
-========================= */
+======================================================= */
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d", { alpha:true });
 
@@ -87,132 +146,213 @@ function resize(){
 addEventListener("resize", resize);
 resize();
 
-/* =========================
+/* =======================================================
    WORLD / GROUND
-========================= */
+======================================================= */
 const WORLD_W = 2600;
 const WORLD_H = 1400;
-
-// Set a consistent ground line so the dog isn't floating high.
-const GROUND_Y = 980;       // lower = higher on screen
-const DOG_FOOT_OFFSET = 8;  // little lift so paws sit nicely
+const GROUND_Y = 980;
+const DOG_FOOT_OFFSET = 8;
 
 const camera = { x:0, y:0 };
 const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
 
-/* =========================
+/* =======================================================
    INPUT
-========================= */
+======================================================= */
 const keys = new Set();
-addEventListener("keydown",(e)=>keys.add(e.key.toLowerCase()));
+addEventListener("keydown",(e)=>{
+  const k = e.key.toLowerCase();
+  keys.add(k);
+  if(["arrowup","arrowdown","arrowleft","arrowright"," "].includes(k)) e.preventDefault();
+},{passive:false});
 addEventListener("keyup",(e)=>keys.delete(e.key.toLowerCase()));
 
-/* =========================
-   DOG SPRITE (IMPORTANT)
-========================= */
-let FRAME_COUNT = 6; // << change if your sheet has more frames
-document.getElementById("framesLabel").textContent = FRAME_COUNT;
+let tap = { x:0, y:0, fired:false };
+canvas.addEventListener("pointerdown",(e)=>{
+  const r = canvas.getBoundingClientRect();
+  tap.x = e.clientX - r.left;
+  tap.y = e.clientY - r.top;
+  tap.fired = true;
+});
 
-let sheet = null;     // cropped sheet canvas
-let sheetCtx = null;
+/* =======================================================
+   UI
+======================================================= */
+const framesLabel = document.getElementById("framesLabel");
+const hint = document.getElementById("hint");
+const parkListEl = document.getElementById("parkList");
+
+/* =======================================================
+   SPRITE LOADING + CROPPING
+======================================================= */
+let FRAME_COUNT = 6;
+framesLabel.textContent = FRAME_COUNT;
+
+let sheet = null;
 let frameW = 0, frameH = 0;
 
+function loadImage(src){
+  return new Promise((resolve,reject)=>{
+    const im = new Image();
+    im.onload = ()=>resolve(im);
+    im.onerror = ()=>reject(new Error("Failed to load "+src));
+    im.src = src + "?v=" + Date.now();
+  });
+}
+
+// crop to visible dog pixels
 function cropTransparentMargins(img){
-  // Crop to non-transparent pixels (alpha > 5)
   const w = img.naturalWidth || img.width;
   const h = img.naturalHeight || img.height;
 
   const off = document.createElement("canvas");
   off.width = w; off.height = h;
   const octx = off.getContext("2d", { willReadFrequently:true });
-  octx.clearRect(0,0,w,h);
   octx.drawImage(img,0,0);
 
   const data = octx.getImageData(0,0,w,h).data;
-
-  let minX=w, minY=h, maxX=0, maxY=0;
-  let found = false;
+  let minX=w, minY=h, maxX=0, maxY=0, found=false;
 
   for(let y=0;y<h;y++){
     for(let x=0;x<w;x++){
       const a = data[(y*w + x)*4 + 3];
-      if(a > 5){
-        found = true;
-        if(x<minX) minX=x;
-        if(y<minY) minY=y;
-        if(x>maxX) maxX=x;
-        if(y>maxY) maxY=y;
+      if(a>5){
+        found=true;
+        if(x<minX)minX=x; if(y<minY)minY=y;
+        if(x>maxX)maxX=x; if(y>maxY)maxY=y;
       }
     }
   }
+  if(!found) return off;
 
-  if(!found){
-    // fallback: no alpha pixels? just return as-is
-    return off;
-  }
+  const pad=6;
+  minX=Math.max(0,minX-pad); minY=Math.max(0,minY-pad);
+  maxX=Math.min(w-1,maxX+pad); maxY=Math.min(h-1,maxY+pad);
 
-  // padding
-  const pad = 6;
-  minX = Math.max(0, minX - pad);
-  minY = Math.max(0, minY - pad);
-  maxX = Math.min(w-1, maxX + pad);
-  maxY = Math.min(h-1, maxY + pad);
-
-  const cw = maxX - minX + 1;
-  const ch = maxY - minY + 1;
-
-  const cropped = document.createElement("canvas");
-  cropped.width = cw;
-  cropped.height = ch;
-  const cctx = cropped.getContext("2d");
-  cctx.drawImage(off, minX, minY, cw, ch, 0, 0, cw, ch);
+  const cw=maxX-minX+1, ch=maxY-minY+1;
+  const cropped=document.createElement("canvas");
+  cropped.width=cw; cropped.height=ch;
+  cropped.getContext("2d").drawImage(off,minX,minY,cw,ch,0,0,cw,ch);
   return cropped;
 }
 
-function loadDogImage(img){
-  sheet = cropTransparentMargins(img);  // fixes “dog high & tiny”
-  sheetCtx = sheet.getContext("2d");
+async function loadDogSprite(){
+  // ✅ This matches your repo: index.html in root, dog_walk.png in /assets/
+  const img = await loadImage("assets/dog_walk.png");
+  sheet = cropTransparentMargins(img);
   frameW = Math.floor(sheet.width / FRAME_COUNT);
   frameH = sheet.height;
 }
 
-/* Load default file with cache-busting so the browser doesn’t keep old images */
-// ⬇⬇⬇ THIS IS THE ONLY PATH CHANGE FOR YOUR REPO ⬇⬇⬇
-const dogImg = new Image();
-dogImg.onload = ()=>loadDogImage(dogImg);
-dogImg.src = "assets/dog_walk.png?v=" + Date.now();
-// ^^^ because index.html is in root and dog_walk.png is in /assets/
-
-/* file picker (optional) */
-document.getElementById("file").addEventListener("change",(e)=>{
-  const f = e.target.files?.[0];
-  if(!f) return;
-  const url = URL.createObjectURL(f);
-  const tmp = new Image();
-  tmp.onload = ()=>{ loadDogImage(tmp); URL.revokeObjectURL(url); };
-  tmp.src = url;
-});
-
-/* =========================
-   DOG ENTITY
-========================= */
+/* =======================================================
+   DOG
+======================================================= */
 const dog = {
   x: WORLD_W/2,
   y: GROUND_Y,
-  vx: 0, vy: 0,
+  vx: 0,
+  vy: 0,
   facing: 1,
   frame: 0,
   animT: 0,
   speed: 320,
-  runMult: 1.75
+  runMult: 1.75,
+  mood: "idle" // idle | happy | sleepy | full
 };
 
-/* =========================
+function dogBounds(){
+  if(!sheet) return {x:dog.x,y:dog.y,w:1,h:1};
+  const targetH = 150;
+  const scale = targetH / frameH;
+  const w = frameW * scale;
+  const h = frameH * scale;
+  const x = dog.x - w/2;
+  const y = (dog.y - h) + DOG_FOOT_OFFSET;
+  return {x,y,w,h};
+}
+
+function inRect(px,py,r){ return px>=r.x && px<=r.x+r.w && py>=r.y && py<=r.y+r.h; }
+function screenToWorld(sx, sy){ return { x: sx + camera.x, y: sy + camera.y }; }
+
+/* =======================================================
+   PARKS + CHECKLIST
+======================================================= */
+const parks = [
+  { id:"yose", name:"Yosemite",      subtitle:"Half Dome",        x:520,  y:GROUND_Y-30, w:220, h:90, visited:false },
+  { id:"gc",   name:"Grand Canyon",  subtitle:"South Rim View",   x:1400, y:GROUND_Y-30, w:260, h:90, visited:false },
+  { id:"zion", name:"Zion",          subtitle:"Angels Landing",   x:2050, y:GROUND_Y-30, w:220, h:90, visited:false },
+];
+
+function renderParkList(){
+  parkListEl.innerHTML = "";
+  for(const p of parks){
+    const row = document.createElement("div");
+    row.className = "parkRow";
+    const box = document.createElement("span");
+    box.className = "box" + (p.visited ? " on" : "");
+    const txt = document.createElement("div");
+    txt.innerHTML = `<b>${p.name}</b> — ${p.subtitle}`;
+    row.appendChild(box);
+    row.appendChild(txt);
+    parkListEl.appendChild(row);
+  }
+}
+renderParkList();
+
+function nearestPark(){
+  let best=null, bestD=1e9;
+  for(const p of parks){
+    const cx = p.x + p.w/2;
+    const cy = p.y;
+    const d = Math.hypot(dog.x - cx, dog.y - cy);
+    if(d < bestD){ bestD=d; best=p; }
+  }
+  return (bestD < 160) ? best : null;
+}
+
+function visitPark(p){
+  p.visited = true;
+  renderParkList();
+  dog.mood = "happy";
+  hint.innerHTML = `📍 Visited <b>${p.name}</b> — ${p.subtitle}!`;
+}
+
+/* =======================================================
    UPDATE
-========================= */
+======================================================= */
 let last = performance.now();
 
 function update(dt){
+  // tap handling
+  if(tap.fired){
+    tap.fired = false;
+    const wpt = screenToWorld(tap.x, tap.y);
+
+    // tap dog => pet (happy)
+    if(inRect(wpt.x, wpt.y, dogBounds())){
+      dog.mood = "happy";
+      hint.innerHTML = "🐾 He loves that you petted him!";
+    } else {
+      // tap sign => visit
+      for(const p of parks){
+        const r = { x:p.x, y:p.y-100, w:p.w, h:p.h+140 };
+        if(inRect(wpt.x, wpt.y, r)){
+          visitPark(p);
+          break;
+        }
+      }
+    }
+  }
+
+  // E to visit nearest sign
+  if(keys.has("e")){
+    keys.delete("e");
+    const p = nearestPark();
+    if(p) visitPark(p);
+    else hint.innerHTML = "Walk closer to a park sign, then press <b>E</b>.";
+  }
+
   const left  = keys.has("arrowleft")  || keys.has("a");
   const right = keys.has("arrowright") || keys.has("d");
   const up    = keys.has("arrowup")    || keys.has("w");
@@ -225,7 +365,6 @@ function update(dt){
   if(up) ay -= 1;
   if(down) ay += 1;
 
-  // normalize diagonal
   const mag = Math.hypot(ax,ay) || 1;
   ax /= mag; ay /= mag;
 
@@ -236,7 +375,6 @@ function update(dt){
   dog.x += dog.vx * dt;
   dog.y += dog.vy * dt;
 
-  // keep dog on a “ground band”
   dog.x = clamp(dog.x, 60, WORLD_W-60);
   dog.y = clamp(dog.y, GROUND_Y-120, GROUND_Y+120);
 
@@ -245,7 +383,18 @@ function update(dt){
 
   const moving = (Math.abs(dog.vx) + Math.abs(dog.vy)) > 2;
 
-  // animate ONLY when moving
+  // mood: sleepy if not moving for a while
+  if(!moving){
+    dog._idleT = (dog._idleT || 0) + dt;
+    if(dog._idleT > 6 && dog.mood !== "sleepy"){
+      dog.mood = "sleepy";
+      hint.innerHTML = "😴 He looks sleepy. Walk him or pet him!";
+    }
+  } else {
+    dog._idleT = 0;
+  }
+
+  // animation
   if(sheet && frameW>0 && moving){
     dog.animT += dt;
     const fps = run ? 16 : 12;
@@ -254,17 +403,22 @@ function update(dt){
       dog.frame = (dog.frame + 1) % FRAME_COUNT;
     }
   } else {
-    dog.frame = 0; // idle
+    dog.frame = 0;
   }
 
   // camera follows
   camera.x = clamp(dog.x - innerWidth/2, 0, WORLD_W - innerWidth);
   camera.y = clamp(dog.y - innerHeight/2, 0, WORLD_H - innerHeight);
+
+  const near = nearestPark();
+  if(near && !near.visited){
+    hint.innerHTML = `Walk up to <b>${near.name}</b> and press <b>E</b> (or tap the sign).`;
+  }
 }
 
-/* =========================
+/* =======================================================
    DRAW
-========================= */
+======================================================= */
 function draw(){
   ctx.clearRect(0,0,innerWidth,innerHeight);
 
@@ -286,26 +440,46 @@ function draw(){
   // ground
   ctx.fillStyle = "rgba(0,0,0,.10)";
   ctx.fillRect(0, GROUND_Y+40, WORLD_W, WORLD_H-(GROUND_Y+40));
-
   ctx.fillStyle = "rgba(255,255,255,.22)";
   ctx.fillRect(0, GROUND_Y+10, WORLD_W, 24);
 
-  // dog
+  drawParks();
   drawDog();
 
   ctx.restore();
+}
 
-  // debug (small)
-  ctx.fillStyle = "rgba(0,0,0,.55)";
-  ctx.font = "12px system-ui";
-  ctx.fillText(`frame ${dog.frame+1}/${FRAME_COUNT}`, 14, innerHeight-14);
+function drawParks(){
+  for(const p of parks){
+    const sx = p.x, sy = p.y-95, w=p.w, h=p.h;
+
+    // post
+    ctx.fillStyle = "rgba(0,0,0,.20)";
+    ctx.fillRect(sx + w/2 - 8, sy + h, 16, 70);
+    // shadow
+    ctx.fillStyle = "rgba(0,0,0,.08)";
+    ctx.fillRect(sx + w/2 - 28, sy + h + 62, 56, 10);
+
+    // board
+    ctx.fillStyle = "rgba(255,255,255,.92)";
+    roundRect(ctx, sx, sy, w, h, 14, true, false);
+
+    ctx.strokeStyle = p.visited ? "rgba(0,160,80,.55)" : "rgba(0,0,0,.16)";
+    ctx.lineWidth = 2;
+    roundRect(ctx, sx, sy, w, h, 14, false, true);
+
+    ctx.fillStyle = "rgba(0,0,0,.78)";
+    ctx.font = "700 16px system-ui";
+    ctx.fillText(p.name, sx+12, sy+28);
+    ctx.font = "12px system-ui";
+    ctx.fillText(p.subtitle, sx+12, sy+50);
+  }
 }
 
 function drawDog(){
   const px = dog.x;
   const py = dog.y;
 
-  // Placeholder if not loaded
   if(!sheet || frameW<=0){
     ctx.fillStyle = "rgba(0,0,0,.35)";
     ctx.beginPath(); ctx.arc(px, py, 26, 0, Math.PI*2); ctx.fill();
@@ -314,17 +488,14 @@ function drawDog(){
     return;
   }
 
-  // BIG dog
   const targetH = 150;
   const scale = targetH / frameH;
   const drawW = frameW * scale;
   const drawH = frameH * scale;
 
-  // Foot anchoring: bottom-center sits on “ground”
   const dx = px - drawW/2;
   const dy = (py - drawH) + DOG_FOOT_OFFSET;
 
-  // Source crop: ONE FRAME ONLY
   const sx = dog.frame * frameW;
   const sy = 0;
 
@@ -335,16 +506,27 @@ function drawDog(){
     ctx.translate(-px, 0);
   }
   ctx.imageSmoothingEnabled = true;
-
-  // draw one frame (prevents “strip sliding”)
   ctx.drawImage(sheet, sx, sy, frameW, frameH, dx, dy, drawW, drawH);
-
   ctx.restore();
+
+  // little speech bubble based on mood
+  ctx.font = "11px system-ui";
+  if(dog.mood === "happy"){
+    ctx.fillStyle = "rgba(255,255,255,.85)";
+    roundRect(ctx, px-34, dy-44, 80, 26, 999, true, false);
+    ctx.fillStyle = "rgba(0,0,0,.70)";
+    ctx.fillText("so happy!", px-18, dy-26);
+  }else if(dog.mood === "sleepy"){
+    ctx.fillStyle = "rgba(255,255,255,.85)";
+    roundRect(ctx, px-20, dy-44, 50, 26, 999, true, false);
+    ctx.fillStyle = "rgba(0,0,0,.70)";
+    ctx.fillText("zzz…", px-5, dy-26);
+  }
 }
 
-/* =========================
+/* =======================================================
    LOOP
-========================= */
+======================================================= */
 function loop(now){
   const dt = Math.min(0.033, (now - last)/1000);
   last = now;
@@ -352,18 +534,48 @@ function loop(now){
   draw();
   requestAnimationFrame(loop);
 }
-requestAnimationFrame(loop);
 
-/* =========================
-   RESET
-========================= */
-document.getElementById("reset").addEventListener("click", ()=>{
+/* =======================================================
+   BUTTONS: Feed / Pet / Sleep / Reset
+======================================================= */
+document.getElementById("btnFeed").addEventListener("click", ()=>{
+  dog.mood = "full";
+  hint.innerHTML = "🍖 You fed him a snack. Yum!";
+});
+document.getElementById("btnPet").addEventListener("click", ()=>{
+  dog.mood = "happy";
+  hint.innerHTML = "🐾 He loves pets!";
+});
+document.getElementById("btnSleep").addEventListener("click", ()=>{
+  dog.mood = "sleepy";
+  hint.innerHTML = "😴 He curls up for a quick nap.";
+});
+document.getElementById("btnReset").addEventListener("click", ()=>{
   dog.x = WORLD_W/2;
   dog.y = GROUND_Y;
   dog.vx = dog.vy = 0;
   dog.facing = 1;
   dog.frame = 0;
+  dog.mood = "idle";
+  for(const p of parks) p.visited = false;
+  renderParkList();
+  hint.innerHTML = "Reset! Walk to a sign and press E or tap it.";
 });
+
+/* =======================================================
+   START
+======================================================= */
+(async function start(){
+  try{
+    hint.textContent = "Loading dog sprite…";
+    await loadDogSprite();
+    hint.innerHTML = "✅ Loaded! Use arrows/WASD to walk. Tap dog to pet. Press E at signs.";
+    requestAnimationFrame(loop);
+  }catch(err){
+    console.error(err);
+    hint.textContent = "❌ Could not load assets/dog_walk.png. Check the filename in /assets.";
+  }
+})();
 </script>
 </body>
 </html>
