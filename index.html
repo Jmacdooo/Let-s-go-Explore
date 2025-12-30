@@ -64,12 +64,13 @@
 
   <script>
     /* =========================================================
-       My Forever Dog — Parks (clean version)
+       My Forever Dog — Parks (Yosemite background version)
 
        - Big dog (walk + idle same size, same ground)
        - Walk, Stop, Pet, Feed
        - Bark ONLY on Pet + Feed
        - Guide + Dog voices at landmarks (no freezing)
+       - Yosemite photo as background
        ========================================================= */
 
     // ---------- canvas ----------
@@ -110,6 +111,10 @@
       barkSound.play().catch(()=>{});
     }
 
+    // ---------- background image (Yosemite) ----------
+    const bgImage = new Image();
+    bgImage.src = "assets/yosemite.png";
+
     // ---------- parks ----------
     const parks = [
       {
@@ -143,7 +148,7 @@
 
     // ---------- sprite meta ----------
     const images = {};
-    const meta = {}; 
+    const meta = {};
     // meta[state] = { frameW, frameH, contentHeight, bottomMargin }
 
     function loadSprite(state, filename, frames){
@@ -372,9 +377,22 @@
 
     // ---------- draw helpers ----------
     function drawBackground(){
-      ctx.fillStyle = "#bde0fe";
-      ctx.fillRect(0,0,canvas.width,canvas.height);
+      // draw Yosemite photo if loaded; otherwise fallback to blue sky
+      if (bgImage.complete && bgImage.naturalWidth > 0) {
+        const iw = bgImage.naturalWidth;
+        const ih = bgImage.naturalHeight;
+        const scale = Math.max(canvas.width / iw, canvas.height / ih);
+        const dw = iw * scale;
+        const dh = ih * scale;
+        const dx = (canvas.width - dw) / 2;
+        const dy = (canvas.height - dh) / 2;
+        ctx.drawImage(bgImage, dx, dy, dw, dh);
+      } else {
+        ctx.fillStyle = "#bde0fe";
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+      }
 
+      // ground strip so dog has a clear “floor”
       const gy = dogGroundY();
       ctx.fillStyle = "#90e0ef";
       ctx.fillRect(0, gy, canvas.width, canvas.height - gy);
@@ -471,4 +489,3 @@
   </script>
 </body>
 </html>
-
