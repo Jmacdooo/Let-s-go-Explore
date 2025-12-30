@@ -203,7 +203,7 @@ function analyzeSprite(state, img, frames){
 loadSprite("walk", "dog_walk.png", WALK_FRAMES);
 loadSprite("idle", "dog_idle.png", 1);
 
-// ---------- SPEECH: guide + dog voice ----------
+// ---------- SPEECH: guide + dog voice (calm + clear) ----------
 let guideVoice = null;
 let dogVoice   = null;
 
@@ -212,14 +212,14 @@ function initVoices(){
   const voices = window.speechSynthesis.getVoices();
   if (!voices || !voices.length) return;
 
+  // GUIDE: calm English voice
   guideVoice =
-    voices.find(v =>
-      v.lang.startsWith("en") &&
-      /female|Google US English|Samantha|Serena|Zira|Karen/i.test(v.name + v.voiceURI)
-    ) ||
+    voices.find(v => v.name.includes("Google UK English Female")) ||
+    voices.find(v => v.name.includes("Google US English")) ||
     voices.find(v => v.lang.startsWith("en")) ||
     voices[0];
 
+  // DOG: different but still English + clear
   dogVoice =
     voices.find(v =>
       v !== guideVoice &&
@@ -229,6 +229,9 @@ function initVoices(){
     voices.find(v => v !== guideVoice && v.lang.startsWith("en")) ||
     voices.find(v => v !== guideVoice) ||
     guideVoice;
+
+  console.log("Guide voice:", guideVoice && guideVoice.name);
+  console.log("Dog voice:",   dogVoice   && dogVoice.name);
 }
 
 if ("speechSynthesis" in window) {
@@ -236,34 +239,47 @@ if ("speechSynthesis" in window) {
   initVoices();
 }
 
+// 🗣️ GUIDE + DOG for landmarks
 function speakForLandmark(p, index, total) {
+  if (!("speechSynthesis" in window)) {
+    // still show text so kids see something
+    if (typeof showMsg === "function") {
+      const txt = `Landmark ${index} of ${total}: ${p.name}. ${p.guideLine || ""} ${p.dogLine || ""}`;
+      showMsg(txt);
+    }
+    return;
+  }
+
+  const synth = window.speechSynthesis;
+  synth.cancel(); // stop anything older
+
   const guideText = `Landmark ${index} of ${total}: ${p.name}. ${p.guideLine || ""}`;
   const dogText   = p.dogLine || "";
 
-  // always show text so something happens
-  showMsg(guideText + (dogText ? " " + dogText : ""));
+  // also show in text bar
+  if (typeof showMsg === "function") {
+    showMsg(guideText + (dogText ? " " + dogText : ""));
+  }
 
-  if (!("speechSynthesis" in window)) return;
-
-  const synth = window.speechSynthesis;
-  if (synth.speaking) synth.cancel();
-
+  // GUIDE
   const guideUtter = new SpeechSynthesisUtterance(guideText);
   if (guideVoice) guideUtter.voice = guideVoice;
-  guideUtter.rate  = 0.95;
-  guideUtter.pitch = 1.0;
+  guideUtter.rate  = 0.9;   // a little slower
+  guideUtter.pitch = 1.0;   // natural
 
+  // when GUIDE done, DOG talks
   guideUtter.onend = () => {
     if (!dogText) return;
     const dogUtter = new SpeechSynthesisUtterance(dogText);
     if (dogVoice || guideVoice) dogUtter.voice = dogVoice || guideVoice;
-    dogUtter.rate  = 1.25;
-    dogUtter.pitch = 1.6;
+    dogUtter.rate  = 1.05;  // slightly faster
+    dogUtter.pitch = 1.3;   // child-like but not squeaky
     synth.speak(dogUtter);
   };
 
   synth.speak(guideUtter);
 }
+
 
 // ---------- dog state ----------
 const dog = {
