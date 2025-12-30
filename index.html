@@ -49,7 +49,7 @@
     text-align:center;
   }
 
-  /* NEW: simple progress badge in top-right */
+  /* progress badge in top-right */
   #progress{
     position:fixed;
     right:10px;
@@ -73,7 +73,6 @@
   <button id="feedBtn">🍖 Feed</button>
 </div>
 
-<!-- NEW: visited counter -->
 <div id="progress">Visited: 0 / 3 landmarks</div>
 
 <div id="msg">Walk to visit the national parks!</div>
@@ -82,20 +81,18 @@
 
 <script>
 /* =========================================================
-   My Forever Dog — Parks (clean version + tiny upgrades)
-   - Big dog (walk + idle same size, same ground)
+   My Forever Dog — Parks (Yosemite version)
+   - Uses assets/yosemite.png  (PNG)
+   - Uses assets/dog_walk.png  (6-frame strip)
+   - Dog art faces LEFT by default; flip when walking RIGHT
    - Walk, Stop, Pet, Feed
-   - Bark ONLY on Pet + Feed
-   - Guide + Dog voices at landmarks (no freezing)
-   - NEW: progress badge
-   - NEW: optional Yosemite background image (safe fallback)
    ========================================================= */
 
 // ---------- canvas ----------
 const canvas = document.getElementById("game");
 const ctx    = canvas.getContext("2d");
 const msgEl  = document.getElementById("msg");
-const progressEl = document.getElementById("progress"); // NEW
+const progressEl = document.getElementById("progress");
 
 function resize(){
   canvas.width  = window.innerWidth;
@@ -110,7 +107,7 @@ function signGroundY(){ return canvas.height - 150; }
 
 // how tall the actual dog body should appear
 const DOG_BODY_SCREEN_HEIGHT = 320;
-const WALK_FRAMES            = 5;
+const WALK_FRAMES            = 6;   // <-- your strip has 6 poses
 
 // ---------- audio ----------
 let barkSound = null;
@@ -126,12 +123,12 @@ function playBark(){
   barkSound.play().catch(()=>{});
 }
 
-// ---------- NEW: optional Yosemite background ----------
+// ---------- Yosemite background (PNG) ----------
 let bgImage = new Image();
 let bgReady = false;
 
-// if this file exists, it will be used; if not, we fall back to plain sky
-bgImage.src = "assets/yosemite_bg.jpg"; // change name if your file is different
+// matches your repo: assets/yosemite.png
+bgImage.src = "assets/yosemite.png";
 bgImage.onload = () => { bgReady = true; };
 
 // ---------- parks ----------
@@ -235,14 +232,12 @@ function initVoices(){
   const voices = window.speechSynthesis.getVoices();
   if (!voices || !voices.length) return;
 
-  // GUIDE: calm English voice
   guideVoice =
     voices.find(v => v.name.includes("Google UK English Female")) ||
     voices.find(v => v.name.includes("Google US English")) ||
     voices.find(v => v.lang.startsWith("en")) ||
     voices[0];
 
-  // DOG: different but still English & clear
   dogVoice =
     voices.find(v =>
       v !== guideVoice &&
@@ -252,9 +247,6 @@ function initVoices(){
     voices.find(v => v !== guideVoice && v.lang.startsWith("en")) ||
     voices.find(v => v !== guideVoice) ||
     guideVoice;
-
-  console.log("Guide voice:", guideVoice && guideVoice.name);
-  console.log("Dog voice:",   dogVoice   && dogVoice.name);
 }
 
 if ("speechSynthesis" in window) {
@@ -266,27 +258,24 @@ function speakForLandmark(p, index, total) {
   const guideText = `Landmark ${index} of ${total}: ${p.name}. ${p.guideLine || ""}`;
   const dogText   = p.dogLine || "";
 
-  // Always show text so kids see something, even if speech fails
   showMsg(guideText + (dogText ? " " + dogText : ""));
 
   if (!("speechSynthesis" in window)) return;
 
   const synth = window.speechSynthesis;
-  synth.cancel(); // stop anything older
+  synth.cancel();
 
-  // GUIDE
   const guideUtter = new SpeechSynthesisUtterance(guideText);
   if (guideVoice) guideUtter.voice = guideVoice;
-  guideUtter.rate  = 0.9;   // slower, clear
-  guideUtter.pitch = 1.0;   // natural
+  guideUtter.rate  = 0.9;
+  guideUtter.pitch = 1.0;
 
-  // When GUIDE finishes, DOG talks
   guideUtter.onend = () => {
     if (!dogText) return;
     const dogUtter = new SpeechSynthesisUtterance(dogText);
     if (dogVoice || guideVoice) dogUtter.voice = dogVoice || guideVoice;
-    dogUtter.rate  = 1.05;  // slightly faster
-    dogUtter.pitch = 1.3;   // child-like but not squeaky
+    dogUtter.rate  = 1.05;
+    dogUtter.pitch = 1.3;
     synth.speak(dogUtter);
   };
 
@@ -296,9 +285,9 @@ function speakForLandmark(p, index, total) {
 // ---------- dog state ----------
 const dog = {
   x: canvas.width * 0.15,
-  dir: 1,
+  dir: -1,          // <-- art faces LEFT by default
   speed: 7,
-  state: "idle",   // "idle" or "walk"
+  state: "idle",
   frame: 0
 };
 
@@ -323,7 +312,6 @@ leftBtn.onclick = function(){
   right = false;
   dog.dir = -1;
   dog.state = "walk";
-
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 };
 
@@ -333,7 +321,6 @@ rightBtn.onclick = function(){
   left  = false;
   dog.dir = 1;
   dog.state = "walk";
-
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 };
 
@@ -378,22 +365,18 @@ function update(){
     if(right) dog.x += dog.speed;
   }
 
-  // clamp on screen
   dog.x = Math.max(60, Math.min(canvas.width - 60, dog.x));
 
-  // check parks
   const dogCenter = dog.x;
   parks.forEach((p, i) => {
     const px = p.pos * canvas.width;
     if (!p.visited && Math.abs(dogCenter - px) < 45 && dog.state === "walk") {
       stopMoving();
       p.visited = true;
-      // NO bark here (only Pet/Feed)
       speakForLandmark(p, i + 1, parks.length);
     }
   });
 
-  // NEW: update visited counter every frame
   const visitedCount = parks.filter(p => p.visited).length;
   progressEl.textContent = `Visited: ${visitedCount} / ${parks.length} landmarks`;
 
@@ -408,7 +391,6 @@ function update(){
 }
 
 // ---------- draw helpers ----------
-// NEW: background prefers Yosemite photo, falls back to old sky
 function drawBackground(){
   if (bgReady) {
     const imgW = bgImage.width;
@@ -419,13 +401,11 @@ function drawBackground(){
     let drawW, drawH, drawX, drawY;
 
     if (canvasAspect > imgAspect) {
-      // canvas is wider → match width
       drawW = canvas.width;
       drawH = canvas.width / imgAspect;
       drawX = 0;
       drawY = (canvas.height - drawH) / 2;
     } else {
-      // canvas is taller → match height
       drawH = canvas.height;
       drawW = canvas.height * imgAspect;
       drawX = (canvas.width - drawW) / 2;
@@ -434,12 +414,10 @@ function drawBackground(){
 
     ctx.drawImage(bgImage, drawX, drawY, drawW, drawH);
   } else {
-    // original simple sky if photo not ready
     ctx.fillStyle = "#bde0fe";
     ctx.fillRect(0,0,canvas.width,canvas.height);
   }
 
-  // keep the soft "ground" strip so feet are clear
   const gy = dogGroundY();
   ctx.fillStyle = "rgba(144,224,239,0.75)";
   ctx.fillRect(0, gy, canvas.width, canvas.height - gy);
@@ -453,11 +431,9 @@ function drawParks(){
     const x = p.pos * canvas.width;
     const signTop = sg - 120;
 
-    // pole
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.fillRect(x - 3, signTop + 20, 6, 100);
 
-    // sign
     ctx.fillStyle = "rgba(255,255,255,0.96)";
     ctx.fillRect(x - 90, signTop, 180, 44);
 
@@ -476,7 +452,6 @@ function drawParks(){
 
 function drawDog(){
   const state = (dog.state === "walk") ? "walk" : "idle";
-
   const img  = images[state];
   const info = meta[state];
   if(!img || !img.complete || !info) return;
@@ -504,7 +479,11 @@ function drawDog(){
   const dy = gy - (drawH - bottomMarginScaled);
 
   ctx.save();
-  if(dog.dir < 0){
+
+  // IMPORTANT:
+  // Sprite faces LEFT by default.
+  // Flip when going RIGHT.
+  if(dog.dir > 0){
     ctx.scale(-1,1);
     ctx.drawImage(
       img,
@@ -520,6 +499,7 @@ function drawDog(){
       drawW, drawH
     );
   }
+
   ctx.restore();
 }
 
@@ -537,4 +517,3 @@ loop();
 
 </body>
 </html>
-
