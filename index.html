@@ -2,309 +2,368 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>My Forever Dog — Simple Yosemite Walk</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>My Forever Dog — Fixed Walking + Ground</title>
 <style>
-  body{
+  html,body{
     margin:0;
-    background:#000;
+    height:100%;
     overflow:hidden;
-    font-family:system-ui,-apple-system,sans-serif;
+    font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;
+    background:#cfe9ff;
   }
   canvas{
     display:block;
     width:100vw;
     height:100vh;
   }
-
-  /* Walk controls */
-  #controls{
+  #ui{
     position:fixed;
-    top:10px;
-    left:10px;
-    z-index:20;
-    background:#fff;
-    padding:10px;
-    border-radius:12px;
-    box-shadow:0 4px 12px rgba(0,0,0,.25);
-  }
-  #controls button{
-    padding:8px 12px;
-    margin:4px;
-    border:none;
-    border-radius:8px;
-    background:#ffb703;
-    font-weight:bold;
-    cursor:pointer;
-  }
-
-  /* Pet / Feed controls */
-  #care{
-    position:fixed;
-    bottom:10px;
-    left:50%;
-    transform:translateX(-50%);
-    z-index:20;
-    background:#fff;
-    padding:10px;
-    border-radius:12px;
-    box-shadow:0 4px 12px rgba(0,0,0,.25);
-  }
-  #care button{
-    padding:8px 12px;
-    margin:4px;
-    border:none;
-    border-radius:8px;
-    background:#90e0ef;
-    font-weight:bold;
-    cursor:pointer;
-  }
-
-  /* Message bubble */
-  #msg{
-    position:fixed;
-    bottom:80px;
-    left:50%;
-    transform:translateX(-50%);
-    z-index:20;
-    background:#fff;
-    padding:8px 14px;
+    left:12px;
+    top:12px;
+    z-index:10;
+    background:rgba(255,255,255,.92);
+    box-shadow:0 10px 30px rgba(0,0,0,.15);
     border-radius:14px;
-    box-shadow:0 4px 12px rgba(0,0,0,.25);
-    font-size:15px;
-    font-weight:500;
-    max-width:90%;
-    text-align:center;
+    padding:10px 12px;
+    display:flex;
+    gap:10px;
+    align-items:center;
+    flex-wrap:wrap;
+    font-size:12px;
+  }
+  #ui b{font-size:13px}
+  #ui .pill{
+    background:#fff;
+    border:1px solid rgba(0,0,0,.12);
+    border-radius:999px;
+    padding:6px 10px;
+  }
+  input[type="file"]{font-size:12px}
+  button{
+    border:none;
+    border-radius:10px;
+    padding:8px 10px;
+    background:#111;
+    color:#fff;
+    font-weight:700;
+    cursor:pointer;
+  }
+  button.secondary{
+    background:#fff;
+    color:#111;
+    border:1px solid rgba(0,0,0,.15);
   }
 </style>
 </head>
 <body>
 
-<div id="controls">
-  <button id="leftBtn">⬅ Walk</button>
-  <button id="stopBtn">⏸ Stop</button>
-  <button id="rightBtn">Walk ➡</button>
+<div id="ui">
+  <b>🐾 Fixed Dog Walk</b>
+  <span class="pill">Arrows / WASD</span>
+  <span class="pill">Shift = run</span>
+  <span class="pill">Sprite frames: <b id="framesLabel">6</b></span>
+  <label class="pill">Load sprite:
+    <input id="file" type="file" accept="image/png,image/webp,image/jpeg">
+  </label>
+  <button id="reset" class="secondary">Reset</button>
 </div>
-
-<div id="care">
-  <button id="petBtn">❤️ Pet</button>
-  <button id="feedBtn">🍖 Feed</button>
-</div>
-
-<div id="msg">If you see this text, the game is running. Try walking your dog!</div>
 
 <canvas id="game"></canvas>
 
 <script>
-// --------------------------------------------------
-// BASIC CANVAS SETUP
-// --------------------------------------------------
+/* =========================
+   CANVAS
+========================= */
 const canvas = document.getElementById("game");
-const ctx    = canvas.getContext("2d");
-const msgEl  = document.getElementById("msg");
+const ctx = canvas.getContext("2d", { alpha:true });
 
 function resize(){
-  canvas.width  = window.innerWidth;
-  canvas.height = window.innerHeight;
-  placeDogOnGround();
+  const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  canvas.width  = Math.floor(innerWidth  * dpr);
+  canvas.height = Math.floor(innerHeight * dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
 }
-window.addEventListener("resize", resize);
+addEventListener("resize", resize);
 resize();
 
-function dogGroundY(){ return canvas.height - 80; } // where his paws go
+/* =========================
+   WORLD / GROUND
+========================= */
+const WORLD_W = 2600;
+const WORLD_H = 1400;
 
-// --------------------------------------------------
-// IMAGES (PATHS MUST MATCH YOUR SCREENSHOT)
-// --------------------------------------------------
-// You showed: assets/yosemite.png and assets/dog_walk.png
+// Set a consistent ground line so the dog isn't floating high.
+const GROUND_Y = 980;       // lower = higher on screen
+const DOG_FOOT_OFFSET = 8;  // little lift so paws sit nicely
 
-const bgImg  = new Image();
-bgImg.src    = "assets/yosemite.png";
+const camera = { x:0, y:0 };
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
 
-const dogImg = new Image();
-dogImg.src   = "assets/dog_walk.png";
+/* =========================
+   INPUT
+========================= */
+const keys = new Set();
+addEventListener("keydown",(e)=>keys.add(e.key.toLowerCase()));
+addEventListener("keyup",(e)=>keys.delete(e.key.toLowerCase()));
 
-// --------------------------------------------------
-// DOG SPRITE SETTINGS (6-FRAME STRIP, FACING RIGHT)
-// --------------------------------------------------
-const DOG_FRAMES   = 6;
-const DOG_FRAME_W  = 256;    // width of one dog frame
-const DOG_FRAME_H  = 256;    // height of one dog frame
-const DOG_SCALE    = 0.8;    // size on screen
-const DOG_SPEED    = 260;    // pixels per second
-const DOG_ANIM_FPS = 8;      // animation speed
+/* =========================
+   DOG SPRITE (IMPORTANT)
+========================= */
+let FRAME_COUNT = 6; // << change if your sheet has more frames
+document.getElementById("framesLabel").textContent = FRAME_COUNT;
 
-const dog = {
-  x: 200,
-  y: 0,
-  dir: 1,        // 1 = RIGHT, -1 = LEFT — your art FACES RIGHT by default
-  state: "idle", // "idle" or "walk"
-  frame: 0,
-  frameTime: 0
-};
+let sheet = null;     // cropped sheet canvas
+let sheetCtx = null;
+let frameW = 0, frameH = 0;
 
-function placeDogOnGround(){
-  dog.y = dogGroundY() - DOG_FRAME_H * DOG_SCALE;
+function cropTransparentMargins(img){
+  // Crop to non-transparent pixels (alpha > 5)
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+
+  const off = document.createElement("canvas");
+  off.width = w; off.height = h;
+  const octx = off.getContext("2d", { willReadFrequently:true });
+  octx.clearRect(0,0,w,h);
+  octx.drawImage(img,0,0);
+
+  const data = octx.getImageData(0,0,w,h).data;
+
+  let minX=w, minY=h, maxX=0, maxY=0;
+  let found = false;
+
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      const a = data[(y*w + x)*4 + 3];
+      if(a > 5){
+        found = true;
+        if(x<minX) minX=x;
+        if(y<minY) minY=y;
+        if(x>maxX) maxX=x;
+        if(y>maxY) maxY=y;
+      }
+    }
+  }
+
+  if(!found){
+    // fallback: no alpha pixels? just return as-is
+    return off;
+  }
+
+  // padding
+  const pad = 6;
+  minX = Math.max(0, minX - pad);
+  minY = Math.max(0, minY - pad);
+  maxX = Math.min(w-1, maxX + pad);
+  maxY = Math.min(h-1, maxY + pad);
+
+  const cw = maxX - minX + 1;
+  const ch = maxY - minY + 1;
+
+  const cropped = document.createElement("canvas");
+  cropped.width = cw;
+  cropped.height = ch;
+  const cctx = cropped.getContext("2d");
+  cctx.drawImage(off, minX, minY, cw, ch, 0, 0, cw, ch);
+  return cropped;
 }
 
-// --------------------------------------------------
-// BUTTONS
-// --------------------------------------------------
-const leftBtn  = document.getElementById("leftBtn");
-const rightBtn = document.getElementById("rightBtn");
-const stopBtn  = document.getElementById("stopBtn");
-const petBtn   = document.getElementById("petBtn");
-const feedBtn  = document.getElementById("feedBtn");
+function loadDogImage(img){
+  sheet = cropTransparentMargins(img);  // fixes “dog high & tiny”
+  sheetCtx = sheet.getContext("2d");
+  frameW = Math.floor(sheet.width / FRAME_COUNT);
+  frameH = sheet.height;
+}
 
-function setMsg(text){ msgEl.textContent = text; }
+/* Load default file with cache-busting so the browser doesn’t keep old images */
+// ⬇⬇⬇ THIS IS THE ONLY PATH CHANGE FOR YOUR REPO ⬇⬇⬇
+const dogImg = new Image();
+dogImg.onload = ()=>loadDogImage(dogImg);
+dogImg.src = "assets/dog_walk.png?v=" + Date.now();
+// ^^^ because index.html is in root and dog_walk.png is in /assets/
 
-leftBtn.onclick = () => {
-  dog.dir = -1;
-  dog.state = "walk";
-  setMsg("Walking left…");
-};
-
-rightBtn.onclick = () => {
-  dog.dir = 1;
-  dog.state = "walk";
-  setMsg("Walking right…");
-};
-
-stopBtn.onclick = () => {
-  dog.state = "idle";
-  setMsg("Stopped. Use the arrow buttons or keys to walk.");
-};
-
-petBtn.onclick = () => {
-  dog.state = "idle";
-  setMsg("Your dog loves pets ❤️");
-};
-
-feedBtn.onclick = () => {
-  dog.state = "idle";
-  setMsg("Yum! Snack time 🍖");
-};
-
-// keyboard shortcuts
-window.addEventListener("keydown", e => {
-  if (e.key === "ArrowLeft")  leftBtn.onclick();
-  if (e.key === "ArrowRight") rightBtn.onclick();
-  if (e.key === " ")          stopBtn.onclick();
+/* file picker (optional) */
+document.getElementById("file").addEventListener("change",(e)=>{
+  const f = e.target.files?.[0];
+  if(!f) return;
+  const url = URL.createObjectURL(f);
+  const tmp = new Image();
+  tmp.onload = ()=>{ loadDogImage(tmp); URL.revokeObjectURL(url); };
+  tmp.src = url;
 });
 
-// --------------------------------------------------
-// UPDATE
-// --------------------------------------------------
-let lastTime = performance.now();
+/* =========================
+   DOG ENTITY
+========================= */
+const dog = {
+  x: WORLD_W/2,
+  y: GROUND_Y,
+  vx: 0, vy: 0,
+  facing: 1,
+  frame: 0,
+  animT: 0,
+  speed: 320,
+  runMult: 1.75
+};
+
+/* =========================
+   UPDATE
+========================= */
+let last = performance.now();
 
 function update(dt){
-  // movement
-  if (dog.state === "walk") {
-    dog.x += dog.dir * DOG_SPEED * dt;
-  }
-  // keep on screen
-  dog.x = Math.max(80, Math.min(canvas.width - 80, dog.x));
+  const left  = keys.has("arrowleft")  || keys.has("a");
+  const right = keys.has("arrowright") || keys.has("d");
+  const up    = keys.has("arrowup")    || keys.has("w");
+  const down  = keys.has("arrowdown")  || keys.has("s");
+  const run   = keys.has("shift");
 
-  // animation
-  if (dog.state === "walk") {
-    dog.frameTime += dt;
-    const frameDur = 1 / DOG_ANIM_FPS;
-    while (dog.frameTime >= frameDur) {
-      dog.frameTime -= frameDur;
-      dog.frame = (dog.frame + 1) % DOG_FRAMES;
+  let ax = 0, ay = 0;
+  if(left) ax -= 1;
+  if(right) ax += 1;
+  if(up) ay -= 1;
+  if(down) ay += 1;
+
+  // normalize diagonal
+  const mag = Math.hypot(ax,ay) || 1;
+  ax /= mag; ay /= mag;
+
+  const spd = dog.speed * (run ? dog.runMult : 1);
+  dog.vx = ax * spd;
+  dog.vy = ay * spd;
+
+  dog.x += dog.vx * dt;
+  dog.y += dog.vy * dt;
+
+  // keep dog on a “ground band”
+  dog.x = clamp(dog.x, 60, WORLD_W-60);
+  dog.y = clamp(dog.y, GROUND_Y-120, GROUND_Y+120);
+
+  if(dog.vx > 6) dog.facing = 1;
+  if(dog.vx < -6) dog.facing = -1;
+
+  const moving = (Math.abs(dog.vx) + Math.abs(dog.vy)) > 2;
+
+  // animate ONLY when moving
+  if(sheet && frameW>0 && moving){
+    dog.animT += dt;
+    const fps = run ? 16 : 12;
+    if(dog.animT >= 1/fps){
+      dog.animT = 0;
+      dog.frame = (dog.frame + 1) % FRAME_COUNT;
     }
   } else {
-    dog.frame = 0;
+    dog.frame = 0; // idle
   }
+
+  // camera follows
+  camera.x = clamp(dog.x - innerWidth/2, 0, WORLD_W - innerWidth);
+  camera.y = clamp(dog.y - innerHeight/2, 0, WORLD_H - innerHeight);
 }
 
-// --------------------------------------------------
-// DRAW
-// --------------------------------------------------
-function drawBackground(){
-  if (bgImg.complete && bgImg.naturalWidth > 0) {
-    // cover canvas with Yosemite, preserving aspect ratio
-    const img = bgImg;
-    const imgW = img.width;
-    const imgH = img.height;
-    const imgAspect = imgW / imgH;
-    const canvasAspect = canvas.width / canvas.height;
+/* =========================
+   DRAW
+========================= */
+function draw(){
+  ctx.clearRect(0,0,innerWidth,innerHeight);
 
-    let drawW, drawH, drawX, drawY;
-    if (canvasAspect > imgAspect) {
-      drawW = canvas.width;
-      drawH = canvas.width / imgAspect;
-      drawX = 0;
-      drawY = (canvas.height - drawH) / 2;
-    } else {
-      drawH = canvas.height;
-      drawW = canvas.height * imgAspect;
-      drawX = (canvas.width - drawW) / 2;
-      drawY = 0;
-    }
-    ctx.drawImage(img, drawX, drawY, drawW, drawH);
-  } else {
-    // fallback sky so it's never just black
-    const g = ctx.createLinearGradient(0,0,0,canvas.height);
-    g.addColorStop(0,"#87CEEB");
-    g.addColorStop(1,"#E0F6FF");
-    ctx.fillStyle = g;
-    ctx.fillRect(0,0,canvas.width,canvas.height);
+  // sky
+  ctx.fillStyle = "#bfe3ff";
+  ctx.fillRect(0,0,innerWidth,innerHeight);
+
+  ctx.save();
+  ctx.translate(-camera.x, -camera.y);
+
+  // soft hills
+  ctx.fillStyle = "rgba(0,0,0,.06)";
+  for(let i=0;i<6;i++){
+    ctx.beginPath();
+    ctx.ellipse(250 + i*520, 260, 520, 160, 0, 0, Math.PI*2);
+    ctx.fill();
   }
 
-  // soft ground strip
-  const gy = dogGroundY();
-  ctx.fillStyle = "rgba(255,255,255,0.25)";
-  ctx.fillRect(0, gy, canvas.width, canvas.height - gy);
+  // ground
+  ctx.fillStyle = "rgba(0,0,0,.10)";
+  ctx.fillRect(0, GROUND_Y+40, WORLD_W, WORLD_H-(GROUND_Y+40));
+
+  ctx.fillStyle = "rgba(255,255,255,.22)";
+  ctx.fillRect(0, GROUND_Y+10, WORLD_W, 24);
+
+  // dog
+  drawDog();
+
+  ctx.restore();
+
+  // debug (small)
+  ctx.fillStyle = "rgba(0,0,0,.55)";
+  ctx.font = "12px system-ui";
+  ctx.fillText(`frame ${dog.frame+1}/${FRAME_COUNT}`, 14, innerHeight-14);
 }
 
 function drawDog(){
-  if (!dogImg.complete || dogImg.naturalWidth === 0) return;
+  const px = dog.x;
+  const py = dog.y;
 
-  const sx = dog.frame * DOG_FRAME_W;
+  // Placeholder if not loaded
+  if(!sheet || frameW<=0){
+    ctx.fillStyle = "rgba(0,0,0,.35)";
+    ctx.beginPath(); ctx.arc(px, py, 26, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.fillText("loading assets/dog_walk.png...", px-90, py-40);
+    return;
+  }
+
+  // BIG dog
+  const targetH = 150;
+  const scale = targetH / frameH;
+  const drawW = frameW * scale;
+  const drawH = frameH * scale;
+
+  // Foot anchoring: bottom-center sits on “ground”
+  const dx = px - drawW/2;
+  const dy = (py - drawH) + DOG_FOOT_OFFSET;
+
+  // Source crop: ONE FRAME ONLY
+  const sx = dog.frame * frameW;
   const sy = 0;
 
-  const dw = DOG_FRAME_W * DOG_SCALE;
-  const dh = DOG_FRAME_H * DOG_SCALE;
-  const dx = dog.x - dw / 2;
-  const dy = dog.y;
-
   ctx.save();
-  // sprite faces RIGHT by default → flip only when walking LEFT
-  if (dog.dir === -1) {
+  if(dog.facing === -1){
+    ctx.translate(px, 0);
     ctx.scale(-1, 1);
-    ctx.drawImage(
-      dogImg,
-      sx, sy, DOG_FRAME_W, DOG_FRAME_H,
-      -dx - dw, dy,
-      dw, dh
-    );
-  } else {
-    ctx.drawImage(
-      dogImg,
-      sx, sy, DOG_FRAME_W, DOG_FRAME_H,
-      dx, dy,
-      dw, dh
-    );
+    ctx.translate(-px, 0);
   }
+  ctx.imageSmoothingEnabled = true;
+
+  // draw one frame (prevents “strip sliding”)
+  ctx.drawImage(sheet, sx, sy, frameW, frameH, dx, dy, drawW, drawH);
+
   ctx.restore();
 }
 
-// --------------------------------------------------
-// MAIN LOOP
-// --------------------------------------------------
-function loop(time){
-  const dt = (time - lastTime) / 1000;
-  lastTime = time;
-
+/* =========================
+   LOOP
+========================= */
+function loop(now){
+  const dt = Math.min(0.033, (now - last)/1000);
+  last = now;
   update(dt);
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  drawBackground();
-  drawDog();
-
+  draw();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
+
+/* =========================
+   RESET
+========================= */
+document.getElementById("reset").addEventListener("click", ()=>{
+  dog.x = WORLD_W/2;
+  dog.y = GROUND_Y;
+  dog.vx = dog.vy = 0;
+  dog.facing = 1;
+  dog.frame = 0;
+});
 </script>
 </body>
 </html>
