@@ -71,7 +71,6 @@
        - Bark ONLY on Pet + Feed
        - Guide + Dog voices at landmarks
        - Yosemite photo behind the scene
-       - NEW: Half Dome photo background when you arrive at Half Dome
        ========================================================= */
 
     // ---------- canvas ----------
@@ -115,15 +114,6 @@
     // ---------- Yosemite background image ----------
     const bgImage = new Image();
     bgImage.src = "assets/yosemite.png";
-
-    // ---------- Half Dome background image (NEW) ----------
-    // Put your file at: assets/half_dome.png
-    const halfDomeImage = new Image();
-    halfDomeImage.src = "assets/half_dome.png";
-
-    // background override state (NEW)
-    let bgOverride = null;       // "half_dome" or null
-    let bgOverrideTimer = 0;     // frames remaining
 
     // ---------- parks ----------
     const parks = [
@@ -370,23 +360,10 @@
         if (!p.visited && Math.abs(dogCenter - px) < 45 && dog.state === "walk") {
           stopMoving();
           p.visited = true;
-
-          // NEW: Half Dome background swap on arrival (no bark)
-          if (p.id === "half_dome") {
-            bgOverride = "half_dome";
-            bgOverrideTimer = 600; // ~10 seconds at ~60fps
-          }
-
           // NO bark here (only Pet/Feed)
           speakForLandmark(p, i + 1, parks.length);
         }
       });
-
-      // NEW: background timer countdown
-      if (bgOverrideTimer > 0) {
-        bgOverrideTimer--;
-        if (bgOverrideTimer === 0) bgOverride = null;
-      }
 
       if(msgTimer > 0){
         msgTimer--;
@@ -400,22 +377,16 @@
 
     // ---------- draw helpers ----------
     function drawBackground(){
-      // NEW: choose which background to draw
-      let bgToDraw = bgImage;
-      if (bgOverride === "half_dome" && halfDomeImage.complete && halfDomeImage.naturalWidth > 0) {
-        bgToDraw = halfDomeImage;
-      }
-
-      // draw photo if loaded; else blue sky
-      if (bgToDraw.complete && bgToDraw.naturalWidth > 0) {
-        const iw = bgToDraw.naturalWidth;
-        const ih = bgToDraw.naturalHeight;
+      // Yosemite photo if loaded; else blue sky
+      if (bgImage.complete && bgImage.naturalWidth > 0) {
+        const iw = bgImage.naturalWidth;
+        const ih = bgImage.naturalHeight;
         const scale = Math.max(canvas.width / iw, canvas.height / ih);
         const dw = iw * scale;
         const dh = ih * scale;
         const dx = (canvas.width - dw) / 2;
         const dy = (canvas.height - dh) / 2;
-        ctx.drawImage(bgToDraw, dx, dy, dw, dh);
+        ctx.drawImage(bgImage, dx, dy, dw, dh);
       } else {
         ctx.fillStyle = "#bde0fe";
         ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -475,13 +446,6 @@
       const bottomMarginScaled = bottomMargin * bodyScale;
 
       let frameIndex = 0;
-      if(state === "walk" && frames > 1){
-        frameIndex = Math.floor(dog.frame / 6) % frames contributes
-        // this line was a typo; keep the original logic:
-        // frameIndex = Math.floor(dog.frame / 6) % frames;
-      }
-
-      // FIX the accidental typo line above by forcing the correct line:
       if(state === "walk" && frames > 1){
         frameIndex = Math.floor(dog.frame / 6) % frames;
       }
