@@ -397,4 +397,47 @@
     last = now;
 
     // action timeout -> return to idle/walk
-    if ((state.mode === "paw" || state.mode ==
+    if ((state.mode === "paw" || state.mode === "eat") && now >= state.actionUntil){
+      state.mode = (state.vx !== 0) ? "walk" : "idle";
+    }
+
+    // walking
+    if (state.mode !== "sleep" && state.vx !== 0 && !(state.mode === "paw" || state.mode === "eat")){
+      state.mode = "walk";
+      state.dogT = clamp(state.dogT + state.vx * SPEED * dt, 0, 1);
+    } else if (!(state.mode === "paw" || state.mode === "eat" || state.mode === "sleep")){
+      state.mode = "idle";
+    }
+
+    // sprite anim update
+    sprites.idle.update(dt);
+    sprites.walk.update(dt);
+    sprites.paw.update(dt);
+    sprites.eat.update(dt);
+    sprites.sleep.update(dt);
+
+    // landmark + background switch (this is the Half Dome swap)
+    const idx = getCurrentLandmarkIndex();
+    if (idx !== state.arrivedIndex){
+      state.arrivedIndex = idx;
+      updateBackgroundForLandmark(idx);
+
+      if (idx >= 0){
+        // (NO bark here — only pet/feed barks)
+        setMsg(`Arrived: ${LANDMARKS[idx].name} — Landmark ${idx + 1} of ${LANDMARKS.length}`);
+        // keep speech gentle
+        speak(LANDMARKS[idx].name);
+      } else {
+        setMsg("Exploring Yosemite… 🐾");
+      }
+    }
+
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
