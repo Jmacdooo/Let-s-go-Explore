@@ -25,10 +25,7 @@
     }
     .btn.alt{ background:#8ecae6; }
     .btn.danger{ background:#fb8500; }
-    .tiny{
-      font-size:12px; opacity:.7; font-weight:600;
-      margin-left:6px;
-    }
+    .tiny{ font-size:12px; opacity:.7; font-weight:600; margin-left:6px; }
 
     #msg{
       position:fixed; left:50%; bottom:12px; transform:translateX(-50%);
@@ -37,6 +34,15 @@
       padding:10px 14px; border-radius:14px;
       max-width:min(740px, calc(100vw - 24px));
       text-align:center; font-weight:700;
+    }
+
+    #debug{
+      position:fixed; left:12px; bottom:12px; z-index:10;
+      background:rgba(255,255,255,.90); box-shadow:var(--shadow);
+      padding:10px 12px; border-radius:14px;
+      font: 600 12px/1.25 system-ui,-apple-system,Segoe UI,Arial,sans-serif;
+      max-width:min(520px, calc(100vw - 24px));
+      white-space:pre-wrap;
     }
   </style>
 </head>
@@ -50,63 +56,40 @@
     <button class="btn" id="feed">🦴 Feed</button>
     <button class="btn alt" id="sleep">😴 Sleep</button>
 
-    <span class="tiny">Tip: walk to the sign to “arrive” at a landmark.</span>
+    <span class="tiny">Walk to the sign to “arrive” at a landmark.</span>
   </div>
 
   <div id="msg">Loading…</div>
+  <div id="debug">Debug loading…</div>
   <canvas id="c"></canvas>
 
 <script>
 (() => {
-  // ========= YOU EDIT THESE =========
-  // Main Yosemite background (already in your repo): assets/yosemite.png
-  const DEFAULT_BG = "assets/yosemite.png";
+  // ------------------ EDIT ONLY IF YOU WANT ------------------
+  // Put your Half Dome image at one of these paths (any one works):
+  // assets/half_dome.png  OR  assets/parks/half_dome.png
+  const HALF_DOME_FILE_HINT = "half_dome.png"; // just a hint for candidates
 
-  // Add THIS file for Half Dome (you asked for a second picture)
-  // Put it in: assets/half_dome.png  (or rename here)
-  const HALF_DOME_BG = "assets/half_dome.png";
-
-  // Landmarks are along a 0..1 "trail" (t). When dog gets close, it "arrives".
-  // Half Dome uses the special background.
-  const LANDMARKS = [
-    { name: "Tunnel View",  t: 0.18, bg: DEFAULT_BG },
-    { name: "El Capitan",   t: 0.40, bg: DEFAULT_BG },
-    { name: "Half Dome",    t: 0.62, bg: HALF_DOME_BG }, // <-- switches background here
-    { name: "Yosemite Falls", t: 0.82, bg: DEFAULT_BG },
-  ];
-
-  // ========= ASSET PATHS (match your repo listing) =========
-  const ASSETS = {
-    idle:  "assets/dog_idle.png",
-    walk:  "assets/dog_walk.png",
-    paw:   "assets/dog_paw.png",
-    eat:   "assets/dog_eat.png",
-    sleep: "assets/dog_sleep.png",
-    bark:  "assets/bark.mp3",
-  };
-
-  // IMPORTANT: your strips are 5 frames (this is what stopped the “multiple dogs” bug)
-  const FRAMES = { idle:5, walk:5, paw:5, eat:5, sleep:5 };
-
-  // ========= CANVAS SETUP =========
+  // ------------------ CANVAS SETUP ------------------
   const canvas = document.getElementById("c");
   const ctx = canvas.getContext("2d");
   const msgEl = document.getElementById("msg");
+  const dbgEl = document.getElementById("debug");
+
+  function setMsg(t){ msgEl.textContent = t; }
+  function setDbg(t){ dbgEl.textContent = t; }
 
   function resize(){
-    canvas.width = Math.floor(window.innerWidth * devicePixelRatio);
+    canvas.width  = Math.floor(window.innerWidth  * devicePixelRatio);
     canvas.height = Math.floor(window.innerHeight * devicePixelRatio);
     ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
   }
   window.addEventListener("resize", resize);
   resize();
 
-  // ========= HELPERS =========
-  function setMsg(t){ msgEl.textContent = t; }
   function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
 
   function coverDraw(img){
-    // Draw img to cover the whole screen without distortion
     const w = window.innerWidth, h = window.innerHeight;
     const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
     if (!iw || !ih) return;
@@ -114,6 +97,16 @@
     const dw = iw * scale, dh = ih * scale;
     const dx = (w - dw) / 2, dy = (h - dh) / 2;
     ctx.drawImage(img, dx, dy, dw, dh);
+  }
+
+  function roundRect(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y, x+w,y+h, r);
+    ctx.arcTo(x+w,y+h, x,y+h, r);
+    ctx.arcTo(x,y+h, x,y, r);
+    ctx.arcTo(x,y, x+w,y, r);
+    ctx.closePath();
   }
 
   function drawSign(textTop, textBottom){
@@ -143,24 +136,51 @@
     ctx.restore();
   }
 
-  function roundRect(x,y,w,h,r){
-    ctx.beginPath();
-    ctx.moveTo(x+r,y);
-    ctx.arcTo(x+w,y, x+w,y+h, r);
-    ctx.arcTo(x+w,y+h, x,y+h, r);
-    ctx.arcTo(x,y+h, x,y, r);
-    ctx.arcTo(x,y, x+w,y, r);
-    ctx.closePath();
+  // ------------------ ASSET LOADING (tries multiple paths) ------------------
+  function loadImage(src){
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve({ok:true, img, src});
+      img.onerror = () => resolve({ok:false, img:null, src});
+      img.src = src;
+    });
   }
 
-  // ========= AUDIO + SPEECH (bark ONLY on pet/feed) =========
-  const barkAudio = new Audio(ASSETS.bark);
+  async function loadFirst(label, candidates){
+    for (const p of candidates){
+      const r = await loadImage(p);
+      if (r.ok) return {ok:true, img:r.img, src:r.src, label, tried:candidates};
+    }
+    return {ok:false, img:null, src:null, label, tried:candidates};
+  }
+
+  // Common locations (your repo has these at /assets/* at the top level)
+  const PATHS = {
+    idle:  ["assets/dog_idle.png","./assets/dog_idle.png","assets/dog/dog_idle.png","/assets/dog_idle.png"],
+    walk:  ["assets/dog_walk.png","./assets/dog_walk.png","assets/dog/dog_walk.png","/assets/dog_walk.png"],
+    paw:   ["assets/dog_paw.png","./assets/dog_paw.png","assets/dog/dog_paw.png","/assets/dog_paw.png"],
+    eat:   ["assets/dog_eat.png","./assets/dog_eat.png","assets/dog/dog_eat.png","/assets/dog_eat.png"],
+    sleep: ["assets/dog_sleep.png","./assets/dog_sleep.png","assets/dog/dog_sleep.png","/assets/dog_sleep.png"],
+
+    // Yosemite background candidates (you’ve used yosemite.png at assets root)
+    yose: [
+      "assets/yosemite.png","./assets/yosemite.png","/assets/yosemite.png",
+      "assets/parks/yosemite.png","assets/parks/bg_yose.png","assets/parks/bg_yose (1).png"
+    ],
+
+    // Half Dome background candidates
+    half: [
+      `assets/${HALF_DOME_FILE_HINT}`, `./assets/${HALF_DOME_FILE_HINT}`, `/assets/${HALF_DOME_FILE_HINT}`,
+      `assets/parks/${HALF_DOME_FILE_HINT}`, `assets/parks/half_dome.png`, `assets/half_dome.jpg`, `assets/parks/half_dome.jpg`
+    ],
+  };
+
+  // ------------------ AUDIO + SPEECH (bark ONLY on pet/feed) ------------------
+  const barkAudio = new Audio("assets/bark.mp3");
   barkAudio.volume = 0.55;
 
   let voices = [];
-  function loadVoices(){
-    voices = speechSynthesis.getVoices() || [];
-  }
+  function loadVoices(){ voices = speechSynthesis.getVoices() || []; }
   loadVoices();
   window.speechSynthesis.onvoiceschanged = loadVoices;
 
@@ -168,47 +188,44 @@
     try{
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
-      // pick a stable english voice if available
       const v = voices.find(v => /en/i.test(v.lang)) || voices[0];
       if (v) u.voice = v;
-      u.rate = 1.0;
-      u.pitch = 1.05;
+      u.rate = 1.0; u.pitch = 1.05;
       speechSynthesis.speak(u);
     }catch(e){}
   }
 
-  // ========= IMAGE LOADER =========
-  function loadImage(src){
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => resolve({img, ok:true, src});
-      img.onerror = () => resolve({img:null, ok:false, src});
-      img.src = src;
-    });
+  // ------------------ SPRITES ------------------
+  function detectFrames(img, fallback=5){
+    const iw = img?.naturalWidth || img?.width || 0;
+    const ih = img?.naturalHeight || img?.height || 0;
+    if (!iw || !ih) return fallback;
+
+    const ratio = iw / ih;           // strips are usually N frames wide, 1 frame tall (square-ish)
+    const guess = Math.round(ratio); // nearest integer
+    if (guess >= 1 && guess <= 12 && Math.abs(ratio - guess) < 0.25) return guess;
+    return fallback;
   }
 
-  // ========= SPRITE =========
   class Sprite {
-    constructor(img, frames, fps){
+    constructor(img, fps){
       this.img = img;
-      this.frames = frames;
       this.fps = fps;
+      this.frames = img ? detectFrames(img, 5) : 1;
       this.t = 0;
       this.frame = 0;
     }
+    reset(){ this.t = 0; this.frame = 0; }
     update(dt){
+      if (!this.img) return;
       this.t += dt;
-      const f = Math.floor(this.t * this.fps) % this.frames;
-      this.frame = f;
+      this.frame = Math.floor(this.t * this.fps) % this.frames;
     }
     draw(x, y, w, h, flip){
       if (!this.img) return;
       const iw = this.img.naturalWidth || this.img.width;
       const ih = this.img.naturalHeight || this.img.height;
       const fw = iw / this.frames;
-
-      // safety: if image isn't divisible, just bail to avoid “multiple dogs” smear
-      if (!isFinite(fw) || fw <= 1) return;
 
       ctx.save();
       ctx.translate(x, y);
@@ -220,40 +237,43 @@
       );
       ctx.restore();
     }
-    reset(){
-      this.t = 0;
-      this.frame = 0;
-    }
   }
 
-  // ========= GAME STATE =========
+  // ------------------ GAME STATE ------------------
   const state = {
-    dogT: 0.05,        // 0..1 along the trail
-    vx: 0,             // -1 left, +1 right
+    dogT: 0.05,
+    vx: 0,
     facingRight: true,
-    mode: "idle",      // idle | walk | paw | eat | sleep
-    actionUntil: 0,    // timestamp when action ends
-    arrivedIndex: -1,  // last landmark "arrived" (within range)
-    bgImg: null,       // current background image object
-    bgSrc: DEFAULT_BG,
+    mode: "idle",
+    actionUntil: 0,
+    arrivedIndex: -999,
+    bgImg: null,
+    bgHalfImg: null,
   };
 
-  const SPEED = 0.10;          // trail units / second
-  const ARRIVE_RANGE = 0.025;  // how close to be "at" landmark
+  const SPEED = 0.10;
+  const ARRIVE_RANGE = 0.025;
 
-  // ========= UI HOOKS =========
-  const walkLBtn = document.getElementById("walkL");
-  const walkRBtn = document.getElementById("walkR");
-  const stopBtn  = document.getElementById("stop");
-  const petBtn   = document.getElementById("pet");
-  const feedBtn  = document.getElementById("feed");
-  const sleepBtn = document.getElementById("sleep");
+  let LANDMARKS = [
+    { name: "Tunnel View",    t: 0.18, bg: "yose" },
+    { name: "El Capitan",     t: 0.40, bg: "yose" },
+    { name: "Half Dome",      t: 0.62, bg: "half" }, // swaps background here
+    { name: "Yosemite Falls", t: 0.82, bg: "yose" },
+  ];
 
-  walkLBtn.onclick = () => { if (state.mode !== "sleep") { state.vx = -1; state.facingRight = false; } };
-  walkRBtn.onclick = () => { if (state.mode !== "sleep") { state.vx =  1; state.facingRight = true;  } };
-  stopBtn.onclick  = () => { state.vx = 0; };
+  function getCurrentLandmarkIndex(){
+    for (let i=0;i<LANDMARKS.length;i++){
+      if (Math.abs(state.dogT - LANDMARKS[i].t) <= ARRIVE_RANGE) return i;
+    }
+    return -1;
+  }
 
-  petBtn.onclick = () => {
+  // ------------------ UI ------------------
+  document.getElementById("walkL").onclick = () => { if (state.mode !== "sleep"){ state.vx = -1; state.facingRight = false; } };
+  document.getElementById("walkR").onclick = () => { if (state.mode !== "sleep"){ state.vx =  1; state.facingRight = true;  } };
+  document.getElementById("stop").onclick  = () => { state.vx = 0; };
+
+  document.getElementById("pet").onclick = () => {
     if (state.mode === "sleep") return;
     barkAudio.currentTime = 0; barkAudio.play().catch(()=>{});
     state.mode = "paw"; state.actionUntil = performance.now() + 750;
@@ -262,7 +282,7 @@
     speak("Who's a good dog?");
   };
 
-  feedBtn.onclick = () => {
+  document.getElementById("feed").onclick = () => {
     if (state.mode === "sleep") return;
     barkAudio.currentTime = 0; barkAudio.play().catch(()=>{});
     state.mode = "eat"; state.actionUntil = performance.now() + 900;
@@ -271,7 +291,7 @@
     speak("Yum!");
   };
 
-  sleepBtn.onclick = () => {
+  document.getElementById("sleep").onclick = () => {
     if (state.mode === "sleep") {
       state.mode = "idle";
       setMsg("Up we go! ☀️");
@@ -285,77 +305,101 @@
     }
   };
 
-  // ========= LOAD EVERYTHING =========
+  // ------------------ LOADING ------------------
   let sprites = {};
-  let bgCache = new Map(); // src -> Image
+  let bgYose = null;
+  let bgHalf = null;
 
   async function boot(){
-    setMsg("Loading dog + Yosemite…");
+    setMsg("Loading dog + backgrounds…");
 
-    const [idle, walk, paw, eat, sleep, bgDefault, bgHalf] = await Promise.all([
-      loadImage(ASSETS.idle),
-      loadImage(ASSETS.walk),
-      loadImage(ASSETS.paw),
-      loadImage(ASSETS.eat),
-      loadImage(ASSETS.sleep),
-      loadImage(DEFAULT_BG),
-      loadImage(HALF_DOME_BG),
+    const results = await Promise.all([
+      loadFirst("dog_idle",  PATHS.idle),
+      loadFirst("dog_walk",  PATHS.walk),
+      loadFirst("dog_paw",   PATHS.paw),
+      loadFirst("dog_eat",   PATHS.eat),
+      loadFirst("dog_sleep", PATHS.sleep),
+      loadFirst("yosemite_bg", PATHS.yose),
+      loadFirst("half_dome_bg", PATHS.half),
     ]);
 
-    // Cache backgrounds (if Half Dome file missing, we just won't switch)
-    if (bgDefault.ok) bgCache.set(DEFAULT_BG, bgDefault.img);
-    if (bgHalf.ok) bgCache.set(HALF_DOME_BG, bgHalf.img);
+    const loaded = [];
+    const missing = [];
+
+    for (const r of results){
+      if (r.ok) loaded.push(`${r.label}: ${r.src}`);
+      else missing.push(`${r.label}: tried → ${r.tried.join(", ")}`);
+    }
+
+    // Build sprites (even if some missing, we’ll still run)
+    const idleImg  = results[0].img;
+    const walkImg  = results[1].img;
+    const pawImg   = results[2].img;
+    const eatImg   = results[3].img;
+    const sleepImg = results[4].img;
+
+    bgYose = results[5].img;
+    bgHalf = results[6].img;
 
     sprites = {
-      idle:  new Sprite(idle.ok  ? idle.img  : null, FRAMES.idle,  6),
-      walk:  new Sprite(walk.ok  ? walk.img  : null, FRAMES.walk,  10),
-      paw:   new Sprite(paw.ok   ? paw.img   : null, FRAMES.paw,   10),
-      eat:   new Sprite(eat.ok   ? eat.img   : null, FRAMES.eat,   10),
-      sleep: new Sprite(sleep.ok ? sleep.img : null, FRAMES.sleep,  5),
+      idle:  new Sprite(idleImg,  6),
+      walk:  new Sprite(walkImg, 10),
+      paw:   new Sprite(pawImg,  10),
+      eat:   new Sprite(eatImg,  10),
+      sleep: new Sprite(sleepImg, 5),
     };
 
-    // Initial background
-    state.bgSrc = DEFAULT_BG;
-    state.bgImg = bgCache.get(DEFAULT_BG) || null;
+    // Debug panel
+    setDbg(
+      `LOADED:\n- ${loaded.join("\n- ")}` +
+      (missing.length ? `\n\nMISSING (this is why the dog can be invisible):\n- ${missing.join("\n- ")}` : "") +
+      `\n\nSprite frames detected:\n- idle: ${sprites.idle.frames}\n- walk: ${sprites.walk.frames}\n- paw: ${sprites.paw.frames}\n- eat: ${sprites.eat.frames}\n- sleep: ${sprites.sleep.frames}`
+    );
 
-    setMsg("Walk around Yosemite! 🐾 (Half Dome swaps the background when you reach it.)");
+    // If the dog is missing, scream it in the main message too.
+    const dogOk = !!(idleImg || walkImg || pawImg || eatImg || sleepImg);
+    if (!dogOk){
+      setMsg("Dog images are NOT loading. Look at the debug box (missing paths).");
+    } else {
+      setMsg("Walk around Yosemite! 🐾 (Half Dome swaps the background.)");
+    }
+
     requestAnimationFrame(loop);
   }
 
-  // ========= LANDMARK LOGIC =========
-  function getCurrentLandmarkIndex(){
-    // "Arrived" means within ARRIVE_RANGE of a landmark.
-    for (let i=0;i<LANDMARKS.length;i++){
-      if (Math.abs(state.dogT - LANDMARKS[i].t) <= ARRIVE_RANGE) return i;
-    }
-    return -1;
+  // ------------------ DRAW ------------------
+  function drawPlaceholderDog(x, y){
+    // simple “dog blob” so you see *something* even if PNGs are missing
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = "rgba(0,0,0,0.20)";
+    ctx.beginPath();
+    ctx.ellipse(0, -55, 55, 35, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.beginPath();
+    ctx.ellipse(-10, -65, 7, 7, 0, 0, Math.PI*2);
+    ctx.ellipse( 10, -65, 7, 7, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
   }
 
-  function updateBackgroundForLandmark(idx){
-    const targetSrc = (idx >= 0 ? LANDMARKS[idx].bg : DEFAULT_BG);
-
-    // If Half Dome image isn't present, fall back safely to DEFAULT_BG
-    const img = bgCache.get(targetSrc) || bgCache.get(DEFAULT_BG) || null;
-
-    state.bgSrc = targetSrc;
-    state.bgImg = img;
-  }
-
-  // ========= DRAW =========
   function draw(){
     const w = window.innerWidth, h = window.innerHeight;
 
-    // Background
+    // choose background
+    const idx = getCurrentLandmarkIndex();
+    const atHalfDome = (idx >= 0 && LANDMARKS[idx].name === "Half Dome" && bgHalf);
+    const bg = atHalfDome ? bgHalf : bgYose;
+
     ctx.clearRect(0,0,w,h);
-    if (state.bgImg){
-      coverDraw(state.bgImg);
-    } else {
-      // fallback
+    if (bg) coverDraw(bg);
+    else {
       ctx.fillStyle = "#bde0fe";
       ctx.fillRect(0,0,w,h);
     }
 
-    // Ground
+    // ground
     const groundY = Math.floor(h * 0.86);
     ctx.save();
     ctx.strokeStyle = "rgba(0,0,0,0.15)";
@@ -366,42 +410,39 @@
     ctx.stroke();
     ctx.restore();
 
-    // Dog position from trail progress
+    // dog
     const x = w * (0.08 + state.dogT * 0.84);
     const dogW = Math.min(260, w * 0.18);
-    const dogH = dogW; // square-ish
+    const dogH = dogW;
 
-    // Choose sprite
     let spr = sprites.idle;
     if (state.mode === "walk") spr = sprites.walk;
     if (state.mode === "paw")  spr = sprites.paw;
     if (state.mode === "eat")  spr = sprites.eat;
     if (state.mode === "sleep")spr = sprites.sleep;
 
-    // Draw dog
-    spr.draw(x, groundY, dogW, dogH, !state.facingRight);
+    if (spr && spr.img){
+      spr.draw(x, groundY, dogW, dogH, !state.facingRight);
+    } else {
+      drawPlaceholderDog(x, groundY);
+    }
 
-    // Landmark sign if close
-    const idx = getCurrentLandmarkIndex();
+    // sign if close
     if (idx >= 0){
-      const top = LANDMARKS[idx].name;
-      const bottom = `Landmark ${idx + 1} of ${LANDMARKS.length}`;
-      drawSign(top, bottom);
+      drawSign(LANDMARKS[idx].name, `Landmark ${idx + 1} of ${LANDMARKS.length}`);
     }
   }
 
-  // ========= UPDATE LOOP =========
+  // ------------------ UPDATE LOOP ------------------
   let last = performance.now();
   function loop(now){
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
 
-    // action timeout -> return to idle/walk
     if ((state.mode === "paw" || state.mode === "eat") && now >= state.actionUntil){
       state.mode = (state.vx !== 0) ? "walk" : "idle";
     }
 
-    // walking
     if (state.mode !== "sleep" && state.vx !== 0 && !(state.mode === "paw" || state.mode === "eat")){
       state.mode = "walk";
       state.dogT = clamp(state.dogT + state.vx * SPEED * dt, 0, 1);
@@ -409,23 +450,15 @@
       state.mode = "idle";
     }
 
-    // sprite anim update
-    sprites.idle.update(dt);
-    sprites.walk.update(dt);
-    sprites.paw.update(dt);
-    sprites.eat.update(dt);
-    sprites.sleep.update(dt);
+    // update sprites
+    for (const k in sprites) sprites[k].update(dt);
 
-    // landmark + background switch (this is the Half Dome swap)
+    // message on landmark changes
     const idx = getCurrentLandmarkIndex();
     if (idx !== state.arrivedIndex){
       state.arrivedIndex = idx;
-      updateBackgroundForLandmark(idx);
-
       if (idx >= 0){
-        // (NO bark here — only pet/feed barks)
         setMsg(`Arrived: ${LANDMARKS[idx].name} — Landmark ${idx + 1} of ${LANDMARKS.length}`);
-        // keep speech gentle
         speak(LANDMARKS[idx].name);
       } else {
         setMsg("Exploring Yosemite… 🐾");
