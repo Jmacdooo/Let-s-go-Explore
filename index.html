@@ -114,6 +114,13 @@
     // ---------- Yosemite background image ----------
     const bgImage = new Image();
     bgImage.src = "assets/yosemite.png";
+// ---------- Half Dome background image (shows briefly on arrival) ----------
+const halfDomeImage = new Image();
+halfDomeImage.src = "assets/half_dome.png";
+
+// background override state
+let bgOverride = null;       // "half_dome" or null
+let bgOverrideTimer = 0;     // frames remaining
 
     // ---------- parks ----------
     const parks = [
