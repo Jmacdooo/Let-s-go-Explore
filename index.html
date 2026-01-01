@@ -138,8 +138,9 @@
     <button id="hugBtn">🤗 Hug</button>
   </div>
 
+  <!-- Intro message: dog invites child to breathe -->
   <div id="msg">
-    Take a calm walk with Parks and let your body reset as you visit beautiful national parks.
+    Hey, let’s get ready for our relaxing walk. Let’s take three deep breaths together.
   </div>
 
   <canvas id="game"></canvas>
@@ -308,6 +309,10 @@
     let bubbles = [];
     let bubbleTimer = 0;
 
+    /* Intro breathing: dog idle breathing puffs */
+    let introBreathing = true;
+    let introBreathFrames = 0;
+
     function spawnBubble(){
       const radius = 15 + Math.random()*20;
       bubbles.push({
@@ -392,6 +397,7 @@
     function setBreathingMode(on){
       breathingMode = on;
       if(on){
+        introBreathing = false; // switch from intro to main breathing mode
         stopMoving();
         resetBreathingVisuals();
         showMsg("Let’s smell the flowers in our nose and blow the bubbles out slowly together.");
@@ -414,6 +420,7 @@
 
     leftBtn.onclick = () => {
       setBreathingMode(false);
+      introBreathing = false;
       left = true; right = false;
       dog.dir = -1; dog.state = "walk";
       calmWalkMessage();
@@ -422,6 +429,7 @@
 
     rightBtn.onclick = () => {
       setBreathingMode(false);
+      introBreathing = false;
       right = true; left = false;
       dog.dir = 1; dog.state = "walk";
       calmWalkMessage();
@@ -430,12 +438,14 @@
 
     stopBtn.onclick = () => {
       stopMoving();
+      introBreathing = false;
       setBreathingMode(false);
       if("speechSynthesis" in window) speechSynthesis.cancel();
     };
 
     petBtn.onclick = () => {
       stopMoving();
+      introBreathing = false;
       setBreathingMode(false);
       playBark();
       showMsg("Your dog loves gentle pets. Taking time to pause and cuddle can help our bodies feel safe. ❤️");
@@ -443,6 +453,7 @@
 
     feedBtn.onclick = () => {
       stopMoving();
+      introBreathing = false;
       setBreathingMode(false);
       playBark();
       showMsg("Snack time! Even Parks takes breaks to rest and refuel. 🍖");
@@ -454,6 +465,7 @@
 
     function openHugOverlay(){
       stopMoving();
+      introBreathing = false;
       setBreathingMode(false);
       if("speechSynthesis" in window) speechSynthesis.cancel();
       if(navigator.vibrate){
@@ -487,6 +499,16 @@
     }
 
     function update(){
+      // Intro breathing: dog idle, little nose puffs for ~3 breaths
+      if (introBreathing) {
+        introBreathFrames++;
+        if (introBreathFrames > 3 * 120) { // ~3 breaths
+          introBreathing = false;
+          // after intro, if no one touched anything, gently reset message
+          msgEl.textContent = "Take a calm walk with Parks and let your body reset as you visit beautiful national parks.";
+        }
+      }
+
       if(breathingMode){
         updateBubbles();
         if(msgTimer > 0) msgTimer--;
@@ -509,14 +531,13 @@
           p.visited = true;
           speakForLandmark(p);
 
-          // show Half Dome overlay when we reach that park
           if(p.id === "half_dome"){
             halfDomeOverlay.classList.add("show");
           }
         }
       });
 
-      if(msgTimer>0 && --msgTimer===0){
+      if(msgTimer>0 && --msgTimer===0 && !introBreathing){
         msgEl.textContent = "Take a calm walk with Parks and let your body reset as you visit beautiful national parks.";
       }
 
@@ -580,6 +601,22 @@
         ctx.drawImage(img, sx,0,w,h, dx, dy, dw, dh);
       }
       ctx.restore();
+
+      // Intro breathing: simple "air puff" near nose
+      if (introBreathing) {
+        const phase = introBreathFrames / 20;
+        const puffR = 6 + 4 * Math.sin(phase);
+        const noseX = dog.x + (dog.dir > 0 ? 40 : -40);
+        const noseY = dogGroundY() - 140; // tweak if needed based on sprite
+
+        ctx.save();
+        ctx.globalAlpha = 0.75;
+        ctx.beginPath();
+        ctx.arc(noseX, noseY, Math.max(3, puffR), 0, Math.PI*2);
+        ctx.fillStyle = "rgba(255,255,255,0.9)";
+        ctx.fill();
+        ctx.restore();
+      }
     }
 
     function loop(){
@@ -597,3 +634,4 @@
   </script>
 </body>
 </html>
+
