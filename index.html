@@ -579,30 +579,50 @@
       });
     }
 
-    function drawDog(){
+     function drawDog(){
       const s = dog.state === "walk" ? "walk" : "idle";
       const img = images[s], m = meta[s];
       if(!img || !m) return;
+
       const f = (s === "walk" ? WALK_FRAMES : 1);
       const w = m.frameW, h = m.frameH, ch = m.contentHeight, bm = m.bottomMargin;
-      const scale = DOG_BODY_SCREEN_HEIGHT / ch;
-      const dw = w*scale, dh = h*scale, bms = bm*scale;
+
+      // Base scale so body height is consistent
+      const baseScale = DOG_BODY_SCREEN_HEIGHT / ch;
+
+      // 🔹 Extra tiny breathing scale for idle only (not walking, not breathingMode, not intro)
+      let extraScale = 1;
+      if (s === "idle" && !breathingMode && !introBreathing) {
+        // dog.frame is already ticking each update()
+        const t = dog.frame / 40;       // control speed
+        extraScale = 1 + 0.015 * Math.sin(t); // about 1.5% chest rise/fall
+      }
+
+      const scale = baseScale * extraScale;
+      const dw = w * scale;
+      const dh = h * scale;
+      const bms = bm * scale;
+
       let fi = 0;
       if(s==="walk" && f>1) fi = Math.floor(dog.frame/6) % f;
-      const sx = fi*w;
-      const dx = dog.x - dw/2;
-      const dy = dogGroundY() - (dh - bms);
+      const sx = fi * w;
+
+      const dx = dog.x - dw / 2;
+
+      // Keep feet on the same ground line even while "breathing"
+      const gy = dogGroundY();
+      const dy = gy - (dh - bms);
 
       ctx.save();
-      if(dog.dir<0){
+      if(dog.dir < 0){
         ctx.scale(-1,1);
-        ctx.drawImage(img, sx,0,w,h, -dx-dw, dy, dw, dh);
+        ctx.drawImage(img, sx,0,w,h, -dx - dw, dy, dw, dh);
       } else {
         ctx.drawImage(img, sx,0,w,h, dx, dy, dw, dh);
       }
       ctx.restore();
 
-      // Intro breathing: simple "air puff" near nose
+      // Intro breathing: air puff near nose ONLY during introBreathing
       if (introBreathing) {
         const phase = introBreathFrames / 20;
         const puffR = 6 + 4 * Math.sin(phase);
@@ -618,6 +638,7 @@
         ctx.restore();
       }
     }
+
 
     function loop(){
       update();
