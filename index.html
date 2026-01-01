@@ -1,487 +1,636 @@
-<script>
-  const canvas = document.getElementById("game");
-  const ctx = canvas.getContext("2d");
-  const msgEl = document.getElementById("msg");
-
-  function resize(){
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-  }
-  window.addEventListener("resize", resize);
-  resize();
-
-  function dogGroundY(){ return canvas.height - 70; }
-  function signGroundY(){ return canvas.height - 150; }
-
-  const DOG_BODY_SCREEN_HEIGHT = 320;
-  const WALK_FRAMES = 5;
-
-  let barkSound = null;
-  try {
-    barkSound = new Audio("assets/bark.mp3");
-  } catch(e) {
-    console.warn("bark.mp3 not found");
-  }
-  function playBark(){
-    if(!barkSound) return;
-    barkSound.currentTime = 0;
-    barkSound.play().catch(()=>{});
-  }
-
-  const bgImage = new Image();
-  bgImage.src = "assets/yosemite.png";
-
-  /* 🌲 CALM + RESET PARKS */
-  const parks = [
-    {
-      id:"half_dome", name:"Half Dome", subtitle:"Yosemite", pos:0.30, visited:false,
-      guideLine:"Half Dome is a giant granite rock in Yosemite National Park.",
-      dogLine:"Let’s slow our steps and look up at Half Dome. Big strong rocks can remind our bodies to feel steady and safe."
-    },
-    {
-      id:"yose_falls", name:"Yosemite Falls", subtitle:"Upper & Lower Falls", pos:0.60, visited:false,
-      guideLine:"Yosemite Falls is one of the tallest waterfalls in North America.",
-      dogLine:"Imagine you can hear the waterfall. Breathe in like cool mist on your face… and blow the air out slowly like the water flowing down."
-    },
-    {
-      id:"tunnel_view", name:"Tunnel View", subtitle:"Lookout", pos:0.90, visited:false,
-      guideLine:"Tunnel View shows Half Dome, El Capitan, and Bridalveil Fall all together.",
-      dogLine:"Tunnel View is like a giant picture window. Let’s pause here, take three soft breaths, and notice all the shapes and colors."
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Forever Dog — Calm, Connect & Reset</title>
+  <style>
+    body{
+      margin:0;
+      background:#bde0fe;
+      overflow:hidden;
+      font-family: system-ui, -apple-system, sans-serif;
     }
-  ];
+    canvas{
+      display:block;
+      width:100vw;
+      height:100vh;
+    }
+    #controls{
+      position:fixed;
+      left:10px;
+      top:10px;
+      z-index:20;
+      background:rgba(255,255,255,.9);
+      padding:8px 10px;
+      border-radius:12px;
+      box-shadow:0 4px 12px rgba(0,0,0,.2);
+      display:flex;
+      flex-wrap:wrap;
+      gap:4px;
+    }
+    button{
+      padding:6px 8px;
+      border-radius:10px;
+      border:none;
+      cursor:pointer;
+      font-weight:600;
+      background:#ffb703;
+      font-size:13px;
+    }
+    #msg{
+      position:fixed;
+      left:50%;
+      bottom:12px;
+      transform:translateX(-50%);
+      background:rgba(255,255,255,.95);
+      padding:8px 14px;
+      border-radius:14px;
+      box-shadow:0 4px 12px rgba(0,0,0,.2);
+      font-size:14px;
+      max-width:90vw;
+      text-align:center;
+      z-index:20;
+    }
 
-  const images = {}, meta = {};
-  function loadSprite(state, file, frames){
-    const img = new Image();
-    img.src = "assets/" + file;
-    img.onload = () => analyze(state, img, frames);
-    images[state] = img;
-  }
-  function analyze(state,img,frames){
-    const frameW = img.width / frames;
-    const frameH = img.height;
-    const off = document.createElement("canvas");
-    off.width = frameW;
-    off.height = frameH;
-    const octx = off.getContext("2d");
-    octx.drawImage(img,0,0);
-    const data = octx.getImageData(0,0,frameW,frameH).data;
-    let top = frameH, bottom = -1;
-    for(let y=0;y<frameH;y++){
-      for(let x=0;x<frameW;x++){
-        const a = data[(y*frameW+x)*4+3];
-        if(a>10){
-          if(y<top) top=y;
-          if(y>bottom) bottom=y;
+    /* Hug overlay */
+    #hugOverlay{
+      position:fixed;
+      inset:0;
+      background:rgba(255,255,255,0.9);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      z-index:30;
+      visibility:hidden;
+      opacity:0;
+      transition:opacity 0.25s ease, visibility 0.25s ease;
+    }
+    #hugOverlay.show{
+      visibility:visible;
+      opacity:1;
+    }
+    .hug-content{
+      max-width:320px;
+      padding:18px 20px;
+      border-radius:18px;
+      box-shadow:0 8px 24px rgba(0,0,0,0.2);
+      background:white;
+      text-align:center;
+    }
+    .hug-emoji{
+      font-size:40px;
+      margin-bottom:8px;
+    }
+    .hug-text{
+      font-size:15px;
+      margin-bottom:14px;
+    }
+
+    /* Park Picture Overlay (Half Dome) */
+    #halfDomeOverlay{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.6);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      z-index:40;
+      visibility:hidden;
+      opacity:0;
+      transition:opacity .3s, visibility .3s;
+    }
+    #halfDomeOverlay.show{
+      visibility:visible;
+      opacity:1;
+    }
+    .parkBox{
+      background:white;
+      padding:12px;
+      border-radius:16px;
+      text-align:center;
+      max-width:90vw;
+      box-shadow:0 8px 28px rgba(0,0,0,0.3);
+    }
+    .parkImg{
+      width:80vw;
+      max-width:500px;
+      border-radius:12px;
+      margin-bottom:10px;
+    }
+    .parkCaption{
+      font-size:15px;
+      margin-bottom:10px;
+      color:#333;
+      line-height:1.4;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="controls">
+    <button id="leftBtn">⬅ Walk</button>
+    <button id="stopBtn">⏸ Stop</button>
+    <button id="rightBtn">Walk ➡</button>
+    <button id="petBtn">❤️ Pet</button>
+    <button id="feedBtn">🍖 Feed</button>
+    <button id="breatheBtn">🫧 Breathe</button>
+    <button id="hugBtn">🤗 Hug</button>
+  </div>
+
+  <!-- Intro message: dog invites child to breathe -->
+  <div id="msg">
+    Hey, let’s get ready for our relaxing walk. Let’s take three deep breaths together.
+  </div>
+
+  <canvas id="game"></canvas>
+
+  <!-- Background music for breathing mode -->
+  <audio id="breathMusic" src="assets/breath_music.mp3" loop></audio>
+
+  <!-- Puppy hug overlay -->
+  <div id="hugOverlay">
+    <div class="hug-content">
+      <div class="hug-emoji">🤗🐶</div>
+      <div class="hug-text">
+        Parks is sending you a big, gentle puppy hug.<br><br>
+        You can hug a pillow, place your hand on your heart, or snuggle close to someone safe while you breathe slowly.
+      </div>
+      <button id="hugCloseBtn">Done</button>
+    </div>
+  </div>
+
+  <!-- Half Dome overlay -->
+  <div id="halfDomeOverlay">
+    <div class="parkBox">
+      <img src="assets/half_dome_photo.png" class="parkImg" alt="Half Dome">
+      <div class="parkCaption">
+        This is Half Dome in Yosemite National Park — a mountain shaped by glaciers.<br>
+        Like strong rocks, you can feel steady and safe in your body when you slow down and breathe.
+      </div>
+      <button id="halfDomeClose">Close</button>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const msgEl = document.getElementById("msg");
+
+    function resize(){
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    function dogGroundY(){ return canvas.height - 70; }
+    function signGroundY(){ return canvas.height - 150; }
+
+    const DOG_BODY_SCREEN_HEIGHT = 320;
+    const WALK_FRAMES = 5;
+
+    let barkSound = null;
+    try {
+      barkSound = new Audio("assets/bark.mp3");
+    } catch(e) {
+      console.warn("bark.mp3 not found");
+    }
+    function playBark(){
+      if(!barkSound) return;
+      barkSound.currentTime = 0;
+      barkSound.play().catch(()=>{});
+    }
+
+    const bgImage = new Image();
+    bgImage.src = "assets/yosemite.png";
+
+    /* 🌲 CALM + RESET PARKS */
+    const parks = [
+      {
+        id:"half_dome", name:"Half Dome", subtitle:"Yosemite", pos:0.30, visited:false,
+        guideLine:"Half Dome is a giant granite rock in Yosemite National Park.",
+        dogLine:"Let’s slow our steps and look up at Half Dome. Big strong rocks can remind our bodies to feel steady and safe."
+      },
+      {
+        id:"yose_falls", name:"Yosemite Falls", subtitle:"Upper & Lower Falls", pos:0.60, visited:false,
+        guideLine:"Yosemite Falls is one of the tallest waterfalls in North America.",
+        dogLine:"Imagine you can hear the waterfall. Breathe in like cool mist on your face… and blow the air out slowly like the water flowing down."
+      },
+      {
+        id:"tunnel_view", name:"Tunnel View", subtitle:"Lookout", pos:0.90, visited:false,
+        guideLine:"Tunnel View shows Half Dome, El Capitan, and Bridalveil Fall all together.",
+        dogLine:"Tunnel View is like a giant picture window. Let’s pause here, take three soft breaths, and notice all the shapes and colors."
+      }
+    ];
+
+    const images = {}, meta = {};
+    function loadSprite(state, file, frames){
+      const img = new Image();
+      img.src = "assets/" + file;
+      img.onload = () => analyze(state, img, frames);
+      images[state] = img;
+    }
+    function analyze(state,img,frames){
+      const frameW = img.width / frames;
+      const frameH = img.height;
+      const off = document.createElement("canvas");
+      off.width = frameW;
+      off.height = frameH;
+      const octx = off.getContext("2d");
+      octx.drawImage(img,0,0);
+      const data = octx.getImageData(0,0,frameW,frameH).data;
+      let top = frameH, bottom = -1;
+      for(let y=0;y<frameH;y++){
+        for(let x=0;x<frameW;x++){
+          const a = data[(y*frameW+x)*4+3];
+          if(a>10){
+            if(y<top) top=y;
+            if(y>bottom) bottom=y;
+          }
         }
       }
-    }
-    if(bottom===-1){
-      meta[state] = {frameW,frameH,contentHeight:frameH,bottomMargin:0};
-      return;
-    }
-    const contentHeight = bottom-top+1;
-    const bottomMargin = (frameH-1)-bottom;
-    meta[state] = {frameW,frameH,contentHeight,bottomMargin};
-  }
-  loadSprite("walk","dog_walk.png",WALK_FRAMES);
-  loadSprite("idle","dog_idle.png",1);
-
-  let guideVoice = null, dogVoice = null;
-  let introSpoken = false; // NEW: track if intro line said
-
-  function speakIntro(){
-    if(introSpoken) return;
-    if(!("speechSynthesis" in window)) return;
-
-    const text = "Hey, let's get ready for our relaxing walk. Let's take three deep breaths together.";
-    const u = new SpeechSynthesisUtterance(text);
-    u.voice = dogVoice || guideVoice;
-    u.rate = 0.95;
-    u.pitch = 1.2;
-    speechSynthesis.cancel();
-    speechSynthesis.speak(u);
-    introSpoken = true;
-  }
-
-  function initVoices(){
-    if(!("speechSynthesis" in window)) return;
-    const v = window.speechSynthesis.getVoices();
-    if(!v.length) return;
-    guideVoice = v.find(x=>/Google UK English Female|US English|en/i.test(x.name)) || v[0];
-    dogVoice = v.find(x=>x!==guideVoice && x.lang.startsWith("en")) || guideVoice;
-
-    // Say intro line once voices are ready
-    speakIntro();
-  }
-  if("speechSynthesis" in window){
-    speechSynthesis.onvoiceschanged = initVoices;
-    initVoices();
-  }
-
-  /* 🐶 RELAXATION SPEECH ONLY */
-  function speakForLandmark(p){
-    const text = (p.dogLine||"") + " " + (p.guideLine||"");
-    showMsg(text);
-    if(!("speechSynthesis" in window)) return;
-    const u = new SpeechSynthesisUtterance(text);
-    u.voice = dogVoice || guideVoice;
-    u.rate = 0.95;
-    u.pitch = 1.2;
-    speechSynthesis.cancel();
-    speechSynthesis.speak(u);
-  }
-
-  const dog = { x:canvas.width*0.15, dir:1, speed:7, state:"idle", frame:0 };
-  let left = false, right = false;
-
-  const leftBtn = document.getElementById("leftBtn");
-  const rightBtn = document.getElementById("rightBtn");
-  const stopBtn = document.getElementById("stopBtn");
-  const petBtn = document.getElementById("petBtn");
-  const feedBtn = document.getElementById("feedBtn");
-  const breatheBtn = document.getElementById("breatheBtn");
-  const hugBtn = document.getElementById("hugBtn");
-  const hugOverlay = document.getElementById("hugOverlay");
-  const hugCloseBtn = document.getElementById("hugCloseBtn");
-  const breathMusic = document.getElementById("breathMusic");
-  const halfDomeOverlay = document.getElementById("halfDomeOverlay");
-  const halfDomeClose = document.getElementById("halfDomeClose");
-
-  /* 🫧 BREATHING MODE STATE */
-  let breathingMode = false;
-  let breathPhase = 0;
-  let bubbles = [];
-  let bubbleTimer = 0;
-
-  /* Intro breathing: dog idle breathing puffs */
-  let introBreathing = true;
-  let introBreathFrames = 0;
-
-  function spawnBubble(){
-    const radius = 15 + Math.random()*20;
-    bubbles.push({
-      x: Math.random()*canvas.width,
-      y: canvas.height + radius + Math.random()*40,
-      r: radius,
-      speed: 0.8 + Math.random()*0.7,
-      popped: false
-    });
-  }
-
-  function resetBreathingVisuals(){
-    bubbles = [];
-    bubbleTimer = 0;
-    breathPhase = 0;
-  }
-
-  function updateBubbles(){
-    bubbleTimer++;
-    if(bubbleTimer % 20 === 0 && bubbles.length < 12){
-      spawnBubble();
-    }
-    bubbles.forEach(b => { b.y -= b.speed; });
-    bubbles = bubbles.filter(b => !b.popped && b.y + b.r > -20);
-  }
-
-  function drawBreathingOverlay(){
-    ctx.save();
-    ctx.fillStyle = "rgba(0,0,0,0.35)";
-    ctx.fillRect(0,0,canvas.width,canvas.height);
-
-    ctx.fillStyle = "#ffffff";
-    ctx.textAlign = "center";
-    ctx.font = "20px system-ui";
-    ctx.fillText("Smell the flowers in your nose…", canvas.width/2, canvas.height*0.20);
-    ctx.fillText("Blow the bubbles out slowly.", canvas.width/2, canvas.height*0.20 + 26);
-
-    breathPhase += 0.03;
-    const baseR = 40;
-    const extra = Math.sin(breathPhase) * 15;
-    const breathR = baseR + extra;
-    ctx.beginPath();
-    ctx.arc(canvas.width/2, canvas.height*0.45, Math.max(20,breathR), 0, Math.PI*2);
-    ctx.strokeStyle = "rgba(255,255,255,0.9)";
-    ctx.lineWidth = 3;
-    ctx.stroke();
-
-    bubbles.forEach(b => {
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
-      ctx.fillStyle = "rgba(255,255,255,0.25)";
-      ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.8)";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    });
-
-    ctx.restore();
-  }
-
-  canvas.addEventListener("pointerdown", e => {
-    if (!breathingMode) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    bubbles.forEach(b => {
-      const dx = x - b.x;
-      const dy = y - b.y;
-      if (!b.popped && Math.sqrt(dx*dx + dy*dy) <= b.r) {
-        b.popped = true;
+      if(bottom===-1){
+        meta[state] = {frameW,frameH,contentHeight:frameH,bottomMargin:0};
+        return;
       }
-    });
-    bubbles = bubbles.filter(b => !b.popped);
-    showMsg("Pop! You can let your big feelings float away like bubbles.");
-  });
+      const contentHeight = bottom-top+1;
+      const bottomMargin = (frameH-1)-bottom;
+      meta[state] = {frameW,frameH,contentHeight,bottomMargin};
+    }
+    loadSprite("walk","dog_walk.png",WALK_FRAMES);
+    loadSprite("idle","dog_idle.png",1);
 
-  function stopMoving(){
-    left = right = false;
-    dog.state = "idle";
-  }
+    let guideVoice = null, dogVoice = null;
+    function initVoices(){
+      if(!("speechSynthesis" in window)) return;
+      const v = window.speechSynthesis.getVoices();
+      if(!v.length) return;
+      guideVoice = v.find(x=>/Google UK English Female|US English|en/i.test(x.name)) || v[0];
+      dogVoice = v.find(x=>x!==guideVoice && x.lang.startsWith("en")) || guideVoice;
+    }
+    if("speechSynthesis" in window){
+      speechSynthesis.onvoiceschanged = initVoices;
+      initVoices();
+    }
 
-  function setBreathingMode(on){
-    breathingMode = on;
-    if(on){
-      introBreathing = false;
-      stopMoving();
-      resetBreathingVisuals();
-      showMsg("Let’s smell the flowers in our nose and blow the bubbles out slowly together.");
-      if("speechSynthesis" in window) speechSynthesis.cancel();
-      if(breathMusic){
-        breathMusic.currentTime = 0;
-        breathMusic.play().catch(()=>{});
+    /* 🐶 RELAXATION SPEECH ONLY */
+    function speakForLandmark(p){
+      const text = (p.dogLine||"") + " " + (p.guideLine||"");
+      showMsg(text);
+      if(!("speechSynthesis" in window)) return;
+      const u = new SpeechSynthesisUtterance(text);
+      u.voice = dogVoice || guideVoice;
+      u.rate = 0.95;
+      u.pitch = 1.2;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(u);
+    }
+
+    const dog = { x:canvas.width*0.15, dir:1, speed:7, state:"idle", frame:0 };
+    let left = false, right = false;
+
+    const leftBtn = document.getElementById("leftBtn");
+    const rightBtn = document.getElementById("rightBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const petBtn = document.getElementById("petBtn");
+    const feedBtn = document.getElementById("feedBtn");
+    const breatheBtn = document.getElementById("breatheBtn");
+    const hugBtn = document.getElementById("hugBtn");
+    const hugOverlay = document.getElementById("hugOverlay");
+    const hugCloseBtn = document.getElementById("hugCloseBtn");
+    const breathMusic = document.getElementById("breathMusic");
+    const halfDomeOverlay = document.getElementById("halfDomeOverlay");
+    const halfDomeClose = document.getElementById("halfDomeClose");
+
+    /* 🫧 BREATHING MODE STATE */
+    let breathingMode = false;
+    let breathPhase = 0;
+    let bubbles = [];
+    let bubbleTimer = 0;
+
+    /* Intro breathing: dog idle breathing puffs */
+    let introBreathing = true;
+    let introBreathFrames = 0;
+
+    function spawnBubble(){
+      const radius = 15 + Math.random()*20;
+      bubbles.push({
+        x: Math.random()*canvas.width,
+        y: canvas.height + radius + Math.random()*40,
+        r: radius,
+        speed: 0.8 + Math.random()*0.7,
+        popped: false
+      });
+    }
+
+    function resetBreathingVisuals(){
+      bubbles = [];
+      bubbleTimer = 0;
+      breathPhase = 0;
+    }
+
+    function updateBubbles(){
+      bubbleTimer++;
+      if(bubbleTimer % 20 === 0 && bubbles.length < 12){
+        spawnBubble();
       }
-    } else {
-      if(breathMusic){
-        breathMusic.pause();
-        breathMusic.currentTime = 0;
-      }
-    }
-  }
-
-  function calmWalkMessage(){
-    showMsg("Let’s take a gentle walk and reset together. We can slow our bodies down as we look at the beautiful national parks.");
-  }
-
-  leftBtn.onclick = () => {
-    setBreathingMode(false);
-    introBreathing = false;
-    left = true; right = false;
-    dog.dir = -1; dog.state = "walk";
-    calmWalkMessage();
-    if("speechSynthesis" in window) speechSynthesis.cancel();
-  };
-
-  rightBtn.onclick = () => {
-    setBreathingMode(false);
-    introBreathing = false;
-    right = true; left = false;
-    dog.dir = 1; dog.state = "walk";
-    calmWalkMessage();
-    if("speechSynthesis" in window) speechSynthesis.cancel();
-  };
-
-  stopBtn.onclick = () => {
-    stopMoving();
-    introBreathing = false;
-    setBreathingMode(false);
-    if("speechSynthesis" in window) speechSynthesis.cancel();
-  };
-
-  petBtn.onclick = () => {
-    stopMoving();
-    introBreathing = false;
-    setBreathingMode(false);
-    playBark();
-    showMsg("Your dog loves gentle pets. Taking time to pause and cuddle can help our bodies feel safe. ❤️");
-  };
-
-  feedBtn.onclick = () => {
-    stopMoving();
-    introBreathing = false;
-    setBreathingMode(false);
-    playBark();
-    showMsg("Snack time! Even Parks takes breaks to rest and refuel. 🍖");
-  };
-
-  breatheBtn.onclick = () => {
-    setBreathingMode(true);
-  };
-
-  function openHugOverlay(){
-    stopMoving();
-    introBreathing = false;
-    setBreathingMode(false);
-    if("speechSynthesis" in window) speechSynthesis.cancel();
-    if(navigator.vibrate){
-      navigator.vibrate(100);
-    }
-    hugOverlay.classList.add("show");
-    showMsg("You are safe. Parks is right here with you.");
-  }
-  function closeHugOverlay(){
-    hugOverlay.classList.remove("show");
-    showMsg("When you’re ready, you can walk with Parks or take another calm breath.");
-  }
-  hugBtn.onclick = openHugOverlay;
-  hugCloseBtn.onclick = closeHugOverlay;
-
-  halfDomeClose.onclick = () => {
-    halfDomeOverlay.classList.remove("show");
-    showMsg("Half Dome is steady and strong — just like your body can be when you slow down and breathe.");
-  };
-
-  window.addEventListener("keydown", e => {
-    if(e.key === "ArrowLeft") leftBtn.onclick();
-    if(e.key === "ArrowRight") rightBtn.onclick();
-    if(e.key === " ") stopBtn.onclick();
-  });
-
-  let msgTimer = 0;
-  function showMsg(t){
-    msgEl.textContent = t;
-    msgTimer = 240;
-  }
-
-  function update(){
-    // Intro breathing: dog idle, nose puffs for a few seconds
-    if (introBreathing) {
-      introBreathFrames++;
-      // about 3 breaths worth (adjust if you want shorter/longer)
-      if (introBreathFrames > 3 * 120) {
-        introBreathing = false;
-        msgEl.textContent = "Take a calm walk with Parks and let your body reset as you visit beautiful national parks.";
-      }
+      bubbles.forEach(b => { b.y -= b.speed; });
+      bubbles = bubbles.filter(b => !b.popped && b.y + b.r > -20);
     }
 
-    if(breathingMode){
-      updateBubbles();
-      if(msgTimer > 0) msgTimer--;
-      dog.frame++;
-      return;
-    }
-
-    if(dog.state === "walk"){
-      if(left) dog.x -= dog.speed;
-      if(right) dog.x += dog.speed;
-    }
-
-    dog.x = Math.max(60, Math.min(canvas.width - 60, dog.x));
-
-    const center = dog.x;
-    parks.forEach(p => {
-      const px = p.pos * canvas.width;
-      if(!p.visited && Math.abs(center - px) < 45 && dog.state === "walk"){
-        stopMoving();
-        p.visited = true;
-        speakForLandmark(p);
-        if(p.id === "half_dome"){
-          halfDomeOverlay.classList.add("show");
-        }
-      }
-    });
-
-    if(msgTimer>0 && --msgTimer===0 && !introBreathing){
-      msgEl.textContent = "Take a calm walk with Parks and let your body reset as you visit beautiful national parks.";
-    }
-
-    dog.frame++;
-  }
-
-  function drawBG(){
-    if(bgImage.complete && bgImage.naturalWidth>0){
-      const iw = bgImage.naturalWidth;
-      const ih = bgImage.naturalHeight;
-      const sc = Math.max(canvas.width/iw, canvas.height/ih);
-      ctx.drawImage(bgImage, (canvas.width-iw*sc)/2, (canvas.height-ih*sc)/2, iw*sc, ih*sc);
-    } else {
-      ctx.fillStyle="#bde0fe";
-      ctx.fillRect(0,0,canvas.width,canvas.height);
-    }
-    ctx.fillStyle="#90e0ef";
-    ctx.fillRect(0, dogGroundY(), canvas.width, canvas.height-dogGroundY());
-  }
-
-  function drawSigns(){
-    const sg = signGroundY();
-    parks.forEach(p=>{
-      const x = p.pos*canvas.width;
-      const top = sg-120;
-      ctx.fillStyle="rgba(0,0,0,.35)";
-      ctx.fillRect(x-3, top+20, 6, 100);
-      ctx.fillStyle="rgba(255,255,255,.96)";
-      ctx.fillRect(x-90, top, 180, 44);
-      ctx.fillStyle="#000";
-      ctx.font="15px system-ui";
-      ctx.fillText(p.name, x-80, top+14);
-      ctx.font="12px system-ui";
-      ctx.fillText(p.subtitle, x-80, top+30);
-      ctx.fillStyle=p.visited ? "#2a9d8f" : "#e76f51";
-      ctx.beginPath();
-      ctx.arc(x+70, top+22, 7, 0, Math.PI*2);
-      ctx.fill();
-    });
-  }
-
-  function drawDog(){
-    const s = dog.state === "walk" ? "walk" : "idle";
-    const img = images[s], m = meta[s];
-    if(!img || !m) return;
-    const f = (s === "walk" ? WALK_FRAMES : 1);
-    const w = m.frameW, h = m.frameH, ch = m.contentHeight, bm = m.bottomMargin;
-    const scale = DOG_BODY_SCREEN_HEIGHT / ch;
-    const dw = w*scale, dh = h*scale, bms = bm*scale;
-    let fi = 0;
-    if(s==="walk" && f>1) fi = Math.floor(dog.frame/6) % f;
-    const sx = fi*w;
-    const dx = dog.x - dw/2;
-    const dy = dogGroundY() - (dh - bms);
-
-    ctx.save();
-    if(dog.dir<0){
-      ctx.scale(-1,1);
-      ctx.drawImage(img, sx,0,w,h, -dx-dw, dy, dw, dh);
-    } else {
-      ctx.drawImage(img, sx,0,w,h, dx, dy, dw, dh);
-    }
-    ctx.restore();
-
-    // Intro breathing: small puff just in front of nose, not on whole body
-    if (introBreathing) {
-      const phase = (introBreathFrames % 60) / 60; // one in/out cycle
-      const baseR = 4;
-      const extraR = 3 * Math.sin(phase * Math.PI); // grow/shrink
-      const puffR = Math.max(2, baseR + extraR);
-
-      // Nose position: a bit in front of dog, mid-snout height
-      const noseY = dogGroundY() - 110; // tweak if needed
-      const offsetX = 70; // distance from body center to nose
-      const noseXBase = dog.x + (dog.dir > 0 ? offsetX : -offsetX);
-
-      // Tiny outward move to suggest air going out
-      const out = 8 * Math.sin(phase * Math.PI);
-      const noseX = noseXBase + (dog.dir > 0 ? out : -out);
-
+    function drawBreathingOverlay(){
       ctx.save();
-      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "center";
+      ctx.font = "20px system-ui";
+      ctx.fillText("Smell the flowers in your nose…", canvas.width/2, canvas.height*0.20);
+      ctx.fillText("Blow the bubbles out slowly.", canvas.width/2, canvas.height*0.20 + 26);
+
+      breathPhase += 0.03;
+      const baseR = 40;
+      const extra = Math.sin(breathPhase) * 15;
+      const breathR = baseR + extra;
       ctx.beginPath();
-      ctx.arc(noseX, noseY, puffR, 0, Math.PI*2);
-      ctx.fillStyle = "rgba(255,255,255,0.9)";
-      ctx.fill();
+      ctx.arc(canvas.width/2, canvas.height*0.45, Math.max(20,breathR), 0, Math.PI*2);
+      ctx.strokeStyle = "rgba(255,255,255,0.9)";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      bubbles.forEach(b => {
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+        ctx.fillStyle = "rgba(255,255,255,0.25)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.8)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      });
+
       ctx.restore();
     }
-  }
 
-  function loop(){
-    update();
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    drawBG();
-    drawSigns();
-    drawDog();
-    if(breathingMode){
-      drawBreathingOverlay();
+    canvas.addEventListener("pointerdown", e => {
+      if (!breathingMode) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      bubbles.forEach(b => {
+        const dx = x - b.x;
+        const dy = y - b.y;
+        if (!b.popped && Math.sqrt(dx*dx + dy*dy) <= b.r) {
+          b.popped = true;
+        }
+      });
+      bubbles = bubbles.filter(b => !b.popped);
+      showMsg("Pop! You can let your big feelings float away like bubbles.");
+    });
+
+    function stopMoving(){
+      left = right = false;
+      dog.state = "idle";
     }
-    requestAnimationFrame(loop);
-  }
-  loop();
-</script>
+
+    function setBreathingMode(on){
+      breathingMode = on;
+      if(on){
+        introBreathing = false; // switch from intro to main breathing mode
+        stopMoving();
+        resetBreathingVisuals();
+        showMsg("Let’s smell the flowers in our nose and blow the bubbles out slowly together.");
+        if("speechSynthesis" in window) speechSynthesis.cancel();
+        if(breathMusic){
+          breathMusic.currentTime = 0;
+          breathMusic.play().catch(()=>{});
+        }
+      } else {
+        if(breathMusic){
+          breathMusic.pause();
+          breathMusic.currentTime = 0;
+        }
+      }
+    }
+
+    function calmWalkMessage(){
+      showMsg("Let’s take a gentle walk and reset together. We can slow our bodies down as we look at the beautiful national parks.");
+    }
+
+    leftBtn.onclick = () => {
+      setBreathingMode(false);
+      introBreathing = false;
+      left = true; right = false;
+      dog.dir = -1; dog.state = "walk";
+      calmWalkMessage();
+      if("speechSynthesis" in window) speechSynthesis.cancel();
+    };
+
+    rightBtn.onclick = () => {
+      setBreathingMode(false);
+      introBreathing = false;
+      right = true; left = false;
+      dog.dir = 1; dog.state = "walk";
+      calmWalkMessage();
+      if("speechSynthesis" in window) speechSynthesis.cancel();
+    };
+
+    stopBtn.onclick = () => {
+      stopMoving();
+      introBreathing = false;
+      setBreathingMode(false);
+      if("speechSynthesis" in window) speechSynthesis.cancel();
+    };
+
+    petBtn.onclick = () => {
+      stopMoving();
+      introBreathing = false;
+      setBreathingMode(false);
+      playBark();
+      showMsg("Your dog loves gentle pets. Taking time to pause and cuddle can help our bodies feel safe. ❤️");
+    };
+
+    feedBtn.onclick = () => {
+      stopMoving();
+      introBreathing = false;
+      setBreathingMode(false);
+      playBark();
+      showMsg("Snack time! Even Parks takes breaks to rest and refuel. 🍖");
+    };
+
+    breatheBtn.onclick = () => {
+      setBreathingMode(true);
+    };
+
+    function openHugOverlay(){
+      stopMoving();
+      introBreathing = false;
+      setBreathingMode(false);
+      if("speechSynthesis" in window) speechSynthesis.cancel();
+      if(navigator.vibrate){
+        navigator.vibrate(100);
+      }
+      hugOverlay.classList.add("show");
+      showMsg("You are safe. Parks is right here with you.");
+    }
+    function closeHugOverlay(){
+      hugOverlay.classList.remove("show");
+      showMsg("When you’re ready, you can walk with Parks or take another calm breath.");
+    }
+    hugBtn.onclick = openHugOverlay;
+    hugCloseBtn.onclick = closeHugOverlay;
+
+    halfDomeClose.onclick = () => {
+      halfDomeOverlay.classList.remove("show");
+      showMsg("Half Dome is steady and strong — just like your body can be when you slow down and breathe.");
+    };
+
+    window.addEventListener("keydown", e => {
+      if(e.key === "ArrowLeft") leftBtn.onclick();
+      if(e.key === "ArrowRight") rightBtn.onclick();
+      if(e.key === " ") stopBtn.onclick();
+    });
+
+    let msgTimer = 0;
+    function showMsg(t){
+      msgEl.textContent = t;
+      msgTimer = 240;
+    }
+
+    function update(){
+      // Intro breathing: dog idle, little nose puffs for ~3 breaths
+      if (introBreathing) {
+        introBreathFrames++;
+        if (introBreathFrames > 3 * 120) { // ~3 breaths
+          introBreathing = false;
+          // after intro, if no one touched anything, gently reset message
+          msgEl.textContent = "Take a calm walk with Parks and let your body reset as you visit beautiful national parks.";
+        }
+      }
+
+      if(breathingMode){
+        updateBubbles();
+        if(msgTimer > 0) msgTimer--;
+        dog.frame++;
+        return;
+      }
+
+      if(dog.state === "walk"){
+        if(left) dog.x -= dog.speed;
+        if(right) dog.x += dog.speed;
+      }
+
+      dog.x = Math.max(60, Math.min(canvas.width - 60, dog.x));
+
+      const center = dog.x;
+      parks.forEach(p => {
+        const px = p.pos * canvas.width;
+        if(!p.visited && Math.abs(center - px) < 45 && dog.state === "walk"){
+          stopMoving();
+          p.visited = true;
+          speakForLandmark(p);
+
+          if(p.id === "half_dome"){
+            halfDomeOverlay.classList.add("show");
+          }
+        }
+      });
+
+      if(msgTimer>0 && --msgTimer===0 && !introBreathing){
+        msgEl.textContent = "Take a calm walk with Parks and let your body reset as you visit beautiful national parks.";
+      }
+
+      dog.frame++;
+    }
+
+    function drawBG(){
+      if(bgImage.complete && bgImage.naturalWidth>0){
+        const iw = bgImage.naturalWidth;
+        const ih = bgImage.naturalHeight;
+        const sc = Math.max(canvas.width/iw, canvas.height/ih);
+        ctx.drawImage(bgImage, (canvas.width-iw*sc)/2, (canvas.height-ih*sc)/2, iw*sc, ih*sc);
+      } else {
+        ctx.fillStyle="#bde0fe";
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+      }
+      ctx.fillStyle="#90e0ef";
+      ctx.fillRect(0, dogGroundY(), canvas.width, canvas.height-dogGroundY());
+    }
+
+    function drawSigns(){
+      const sg = signGroundY();
+      parks.forEach(p=>{
+        const x = p.pos*canvas.width;
+        const top = sg-120;
+        ctx.fillStyle="rgba(0,0,0,.35)";
+        ctx.fillRect(x-3, top+20, 6, 100);
+        ctx.fillStyle="rgba(255,255,255,.96)";
+        ctx.fillRect(x-90, top, 180, 44);
+        ctx.fillStyle="#000";
+        ctx.font="15px system-ui";
+        ctx.fillText(p.name, x-80, top+14);
+        ctx.font="12px system-ui";
+        ctx.fillText(p.subtitle, x-80, top+30);
+        ctx.fillStyle=p.visited ? "#2a9d8f" : "#e76f51";
+        ctx.beginPath();
+        ctx.arc(x+70, top+22, 7, 0, Math.PI*2);
+        ctx.fill();
+      });
+    }
+
+    function drawDog(){
+      const s = dog.state === "walk" ? "walk" : "idle";
+      const img = images[s], m = meta[s];
+      if(!img || !m) return;
+      const f = (s === "walk" ? WALK_FRAMES : 1);
+      const w = m.frameW, h = m.frameH, ch = m.contentHeight, bm = m.bottomMargin;
+      const scale = DOG_BODY_SCREEN_HEIGHT / ch;
+      const dw = w*scale, dh = h*scale, bms = bm*scale;
+      let fi = 0;
+      if(s==="walk" && f>1) fi = Math.floor(dog.frame/6) % f;
+      const sx = fi*w;
+      const dx = dog.x - dw/2;
+      const dy = dogGroundY() - (dh - bms);
+
+      ctx.save();
+      if(dog.dir<0){
+        ctx.scale(-1,1);
+        ctx.drawImage(img, sx,0,w,h, -dx-dw, dy, dw, dh);
+      } else {
+        ctx.drawImage(img, sx,0,w,h, dx, dy, dw, dh);
+      }
+      ctx.restore();
+
+      // Intro breathing: simple "air puff" near nose
+      if (introBreathing) {
+        const phase = introBreathFrames / 20;
+        const puffR = 6 + 4 * Math.sin(phase);
+        const noseX = dog.x + (dog.dir > 0 ? 40 : -40);
+        const noseY = dogGroundY() - 140; // tweak if needed based on sprite
+
+        ctx.save();
+        ctx.globalAlpha = 0.75;
+        ctx.beginPath();
+        ctx.arc(noseX, noseY, Math.max(3, puffR), 0, Math.PI*2);
+        ctx.fillStyle = "rgba(255,255,255,0.9)";
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    function loop(){
+      update();
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      drawBG();
+      drawSigns();
+      drawDog();
+      if(breathingMode){
+        drawBreathingOverlay();
+      }
+      requestAnimationFrame(loop);
+    }
+    loop();
+  </script>
+</body>
+</html>
