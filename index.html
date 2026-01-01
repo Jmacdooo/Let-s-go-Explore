@@ -86,6 +86,44 @@
       font-size:15px;
       margin-bottom:14px;
     }
+
+    /* Park Picture Overlay (Half Dome) */
+    #halfDomeOverlay{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.6);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      z-index:40;
+      visibility:hidden;
+      opacity:0;
+      transition:opacity .3s, visibility .3s;
+    }
+    #halfDomeOverlay.show{
+      visibility:visible;
+      opacity:1;
+    }
+    .parkBox{
+      background:white;
+      padding:12px;
+      border-radius:16px;
+      text-align:center;
+      max-width:90vw;
+      box-shadow:0 8px 28px rgba(0,0,0,0.3);
+    }
+    .parkImg{
+      width:80vw;
+      max-width:500px;
+      border-radius:12px;
+      margin-bottom:10px;
+    }
+    .parkCaption{
+      font-size:15px;
+      margin-bottom:10px;
+      color:#333;
+      line-height:1.4;
+    }
   </style>
 </head>
 
@@ -110,18 +148,7 @@
   <audio id="breathMusic" src="assets/breath_music.mp3" loop></audio>
 
   <!-- Puppy hug overlay -->
-<!-- Half Dome Overlay -->
-<div id="halfDomeOverlay" class="parkOverlay">
-  <div class="parkBox">
-    <img src="assets/half_dome_photo.png" class="parkImg" alt="Half Dome">
-    <div class="parkCaption">
-      This is Half Dome in Yosemite National Park — a mountain shaped by glaciers. 
-      Like strong rocks, you can feel steady and safe in your body.
-    </div>
-    <button id="halfDomeClose">Close</button>
-  </div>
-</div>
-
+  <div id="hugOverlay">
     <div class="hug-content">
       <div class="hug-emoji">🤗🐶</div>
       <div class="hug-text">
@@ -132,13 +159,29 @@
     </div>
   </div>
 
+  <!-- Half Dome overlay -->
+  <div id="halfDomeOverlay">
+    <div class="parkBox">
+      <img src="assets/half_dome_photo.png" class="parkImg" alt="Half Dome">
+      <div class="parkCaption">
+        This is Half Dome in Yosemite National Park — a mountain shaped by glaciers.<br>
+        Like strong rocks, you can feel steady and safe in your body when you slow down and breathe.
+      </div>
+      <button id="halfDomeClose">Close</button>
+    </div>
+  </div>
+
   <script>
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
     const msgEl = document.getElementById("msg");
 
-    function resize(){ canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-    window.addEventListener("resize", resize); resize();
+    function resize(){
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener("resize", resize);
+    resize();
 
     function dogGroundY(){ return canvas.height - 70; }
     function signGroundY(){ return canvas.height - 150; }
@@ -147,8 +190,16 @@
     const WALK_FRAMES = 5;
 
     let barkSound = null;
-    try { barkSound = new Audio("assets/bark.mp3"); } catch(e) { console.warn("bark.mp3 not found"); }
-    function playBark(){ if(!barkSound) return; barkSound.currentTime=0; barkSound.play().catch(()=>{}); }
+    try {
+      barkSound = new Audio("assets/bark.mp3");
+    } catch(e) {
+      console.warn("bark.mp3 not found");
+    }
+    function playBark(){
+      if(!barkSound) return;
+      barkSound.currentTime = 0;
+      barkSound.play().catch(()=>{});
+    }
 
     const bgImage = new Image();
     bgImage.src = "assets/yosemite.png";
@@ -173,47 +224,70 @@
     ];
 
     const images = {}, meta = {};
-    function loadSprite(state, file, frames){ const img=new Image(); img.src="assets/"+file; img.onload=()=>analyze(state,img,frames); images[state]=img; }
+    function loadSprite(state, file, frames){
+      const img = new Image();
+      img.src = "assets/" + file;
+      img.onload = () => analyze(state, img, frames);
+      images[state] = img;
+    }
     function analyze(state,img,frames){
-      const frameW=img.width/frames, frameH=img.height;
-      const off=document.createElement("canvas"); off.width=frameW; off.height=frameH;
-      const octx=off.getContext("2d"); octx.drawImage(img,0,0);
-      const data=octx.getImageData(0,0,frameW,frameH).data;
-      let top=frameH,bottom=-1;
+      const frameW = img.width / frames;
+      const frameH = img.height;
+      const off = document.createElement("canvas");
+      off.width = frameW;
+      off.height = frameH;
+      const octx = off.getContext("2d");
+      octx.drawImage(img,0,0);
+      const data = octx.getImageData(0,0,frameW,frameH).data;
+      let top = frameH, bottom = -1;
       for(let y=0;y<frameH;y++){
         for(let x=0;x<frameW;x++){
-          const a=data[(y*frameW+x)*4+3];
-          if(a>10){ if(y<top)top=y; if(y>bottom)bottom=y; }
+          const a = data[(y*frameW+x)*4+3];
+          if(a>10){
+            if(y<top) top=y;
+            if(y>bottom) bottom=y;
+          }
         }
       }
-      if(bottom===-1){ meta[state]={frameW,frameH,contentHeight:frameH,bottomMargin:0}; return; }
-      const contentHeight=bottom-top+1, bottomMargin=(frameH-1)-bottom;
-      meta[state]={frameW,frameH,contentHeight,bottomMargin};
+      if(bottom===-1){
+        meta[state] = {frameW,frameH,contentHeight:frameH,bottomMargin:0};
+        return;
+      }
+      const contentHeight = bottom-top+1;
+      const bottomMargin = (frameH-1)-bottom;
+      meta[state] = {frameW,frameH,contentHeight,bottomMargin};
     }
     loadSprite("walk","dog_walk.png",WALK_FRAMES);
     loadSprite("idle","dog_idle.png",1);
 
-    let guideVoice=null,dogVoice=null;
+    let guideVoice = null, dogVoice = null;
     function initVoices(){
-      if(!("speechSynthesis"in window))return;
-      const v=window.speechSynthesis.getVoices(); if(!v.length)return;
-      guideVoice=v.find(x=>/Google UK English Female|US English|en/i.test(x.name))||v[0];
-      dogVoice=v.find(x=>x!==guideVoice&&x.lang.startsWith("en"))||guideVoice;
+      if(!("speechSynthesis" in window)) return;
+      const v = window.speechSynthesis.getVoices();
+      if(!v.length) return;
+      guideVoice = v.find(x=>/Google UK English Female|US English|en/i.test(x.name)) || v[0];
+      dogVoice = v.find(x=>x!==guideVoice && x.lang.startsWith("en")) || guideVoice;
     }
-    if("speechSynthesis"in window){ speechSynthesis.onvoiceschanged=initVoices; initVoices(); }
+    if("speechSynthesis" in window){
+      speechSynthesis.onvoiceschanged = initVoices;
+      initVoices();
+    }
 
     /* 🐶 RELAXATION SPEECH ONLY */
     function speakForLandmark(p){
-      const text=(p.dogLine||"")+" "+(p.guideLine||"");
+      const text = (p.dogLine||"") + " " + (p.guideLine||"");
       showMsg(text);
-      if(!("speechSynthesis"in window))return;
-      const u=new SpeechSynthesisUtterance(text);
-      u.voice=dogVoice||guideVoice; u.rate=0.95; u.pitch=1.2;
-      speechSynthesis.cancel(); speechSynthesis.speak(u);
+      if(!("speechSynthesis" in window)) return;
+      const u = new SpeechSynthesisUtterance(text);
+      u.voice = dogVoice || guideVoice;
+      u.rate = 0.95;
+      u.pitch = 1.2;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(u);
     }
 
-    const dog={ x:canvas.width*0.15, dir:1, speed:7, state:"idle", frame:0 };
-    let left=false,right=false;
+    const dog = { x:canvas.width*0.15, dir:1, speed:7, state:"idle", frame:0 };
+    let left = false, right = false;
 
     const leftBtn = document.getElementById("leftBtn");
     const rightBtn = document.getElementById("rightBtn");
@@ -225,12 +299,12 @@
     const hugOverlay = document.getElementById("hugOverlay");
     const hugCloseBtn = document.getElementById("hugCloseBtn");
     const breathMusic = document.getElementById("breathMusic");
+    const halfDomeOverlay = document.getElementById("halfDomeOverlay");
+    const halfDomeClose = document.getElementById("halfDomeClose");
 
     /* 🫧 BREATHING MODE STATE */
     let breathingMode = false;
     let breathPhase = 0;
-
-    /* Bubbles for popping */
     let bubbles = [];
     let bubbleTimer = 0;
 
@@ -261,22 +335,19 @@
     }
 
     function drawBreathingOverlay(){
-      // dim screen
       ctx.save();
       ctx.fillStyle = "rgba(0,0,0,0.35)";
       ctx.fillRect(0,0,canvas.width,canvas.height);
 
-      // breathing text
       ctx.fillStyle = "#ffffff";
       ctx.textAlign = "center";
       ctx.font = "20px system-ui";
       ctx.fillText("Smell the flowers in your nose…", canvas.width/2, canvas.height*0.20);
       ctx.fillText("Blow the bubbles out slowly.", canvas.width/2, canvas.height*0.20 + 26);
 
-      // pulse circle in middle to guide breath
       breathPhase += 0.03;
       const baseR = 40;
-      const extra = Math.sin(breathPhase) * 15; // in/out
+      const extra = Math.sin(breathPhase) * 15;
       const breathR = baseR + extra;
       ctx.beginPath();
       ctx.arc(canvas.width/2, canvas.height*0.45, Math.max(20,breathR), 0, Math.PI*2);
@@ -284,7 +355,6 @@
       ctx.lineWidth = 3;
       ctx.stroke();
 
-      // bubbles
       bubbles.forEach(b => {
         ctx.beginPath();
         ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
@@ -298,7 +368,6 @@
       ctx.restore();
     }
 
-    // Tap to pop bubbles in breathing mode
     canvas.addEventListener("pointerdown", e => {
       if (!breathingMode) return;
       const rect = canvas.getBoundingClientRect();
@@ -343,7 +412,6 @@
       showMsg("Let’s take a gentle walk and reset together. We can slow our bodies down as we look at the beautiful national parks.");
     }
 
-    // WALK LEFT
     leftBtn.onclick = () => {
       setBreathingMode(false);
       left = true; right = false;
@@ -352,7 +420,6 @@
       if("speechSynthesis" in window) speechSynthesis.cancel();
     };
 
-    // WALK RIGHT
     rightBtn.onclick = () => {
       setBreathingMode(false);
       right = true; left = false;
@@ -361,14 +428,12 @@
       if("speechSynthesis" in window) speechSynthesis.cancel();
     };
 
-    // STOP
     stopBtn.onclick = () => {
       stopMoving();
       setBreathingMode(false);
       if("speechSynthesis" in window) speechSynthesis.cancel();
     };
 
-    // PET
     petBtn.onclick = () => {
       stopMoving();
       setBreathingMode(false);
@@ -376,7 +441,6 @@
       showMsg("Your dog loves gentle pets. Taking time to pause and cuddle can help our bodies feel safe. ❤️");
     };
 
-    // FEED
     feedBtn.onclick = () => {
       stopMoving();
       setBreathingMode(false);
@@ -384,30 +448,31 @@
       showMsg("Snack time! Even Parks takes breaks to rest and refuel. 🍖");
     };
 
-    // BREATHE button
     breatheBtn.onclick = () => {
       setBreathingMode(true);
     };
 
-    // HUG button + overlay
     function openHugOverlay(){
       stopMoving();
       setBreathingMode(false);
       if("speechSynthesis" in window) speechSynthesis.cancel();
       if(navigator.vibrate){
-        navigator.vibrate(100); // soft buzz
+        navigator.vibrate(100);
       }
       hugOverlay.classList.add("show");
       showMsg("You are safe. Parks is right here with you.");
     }
-
     function closeHugOverlay(){
       hugOverlay.classList.remove("show");
       showMsg("When you’re ready, you can walk with Parks or take another calm breath.");
     }
-
     hugBtn.onclick = openHugOverlay;
     hugCloseBtn.onclick = closeHugOverlay;
+
+    halfDomeClose.onclick = () => {
+      halfDomeOverlay.classList.remove("show");
+      showMsg("Half Dome is steady and strong — just like your body can be when you slow down and breathe.");
+    };
 
     window.addEventListener("keydown", e => {
       if(e.key === "ArrowLeft") leftBtn.onclick();
@@ -416,12 +481,15 @@
     });
 
     let msgTimer = 0;
-    function showMsg(t){ msgEl.textContent = t; msgTimer = 240; }
+    function showMsg(t){
+      msgEl.textContent = t;
+      msgTimer = 240;
+    }
 
     function update(){
       if(breathingMode){
         updateBubbles();
-        if(msgTimer > 0){ msgTimer--; }
+        if(msgTimer > 0) msgTimer--;
         dog.frame++;
         return;
       }
@@ -435,11 +503,16 @@
 
       const center = dog.x;
       parks.forEach(p => {
-        const px = p.pos*canvas.width;
-        if(!p.visited && Math.abs(center-px)<45 && dog.state==="walk"){
+        const px = p.pos * canvas.width;
+        if(!p.visited && Math.abs(center - px) < 45 && dog.state === "walk"){
           stopMoving();
           p.visited = true;
           speakForLandmark(p);
+
+          // show Half Dome overlay when we reach that park
+          if(p.id === "half_dome"){
+            halfDomeOverlay.classList.add("show");
+          }
         }
       });
 
@@ -452,26 +525,36 @@
 
     function drawBG(){
       if(bgImage.complete && bgImage.naturalWidth>0){
-        const iw=bgImage.naturalWidth, ih=bgImage.naturalHeight;
-        const sc=Math.max(canvas.width/iw,canvas.height/ih);
-        ctx.drawImage(bgImage,(canvas.width-iw*sc)/2,(canvas.height-ih*sc)/2,iw*sc,ih*sc);
+        const iw = bgImage.naturalWidth;
+        const ih = bgImage.naturalHeight;
+        const sc = Math.max(canvas.width/iw, canvas.height/ih);
+        ctx.drawImage(bgImage, (canvas.width-iw*sc)/2, (canvas.height-ih*sc)/2, iw*sc, ih*sc);
       } else {
-        ctx.fillStyle="#bde0fe"; ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.fillStyle="#bde0fe";
+        ctx.fillRect(0,0,canvas.width,canvas.height);
       }
       ctx.fillStyle="#90e0ef";
-      ctx.fillRect(0,dogGroundY(),canvas.width,canvas.height-dogGroundY());
+      ctx.fillRect(0, dogGroundY(), canvas.width, canvas.height-dogGroundY());
     }
 
     function drawSigns(){
-      const sg=signGroundY();
+      const sg = signGroundY();
       parks.forEach(p=>{
-        const x=p.pos*canvas.width, top=sg-120;
-        ctx.fillStyle="rgba(0,0,0,.35)"; ctx.fillRect(x-3,top+20,6,100);
-        ctx.fillStyle="rgba(255,255,255,.96)"; ctx.fillRect(x-90,top,180,44);
-        ctx.fillStyle="#000"; ctx.font="15px system-ui"; ctx.fillText(p.name,x-80,top+14);
-        ctx.font="12px system-ui"; ctx.fillText(p.subtitle,x-80,top+30);
-        ctx.fillStyle=p.visited?"#2a9d8f":"#e76f51";
-        ctx.beginPath(); ctx.arc(x+70,top+22,7,0,Math.PI*2); ctx.fill();
+        const x = p.pos*canvas.width;
+        const top = sg-120;
+        ctx.fillStyle="rgba(0,0,0,.35)";
+        ctx.fillRect(x-3, top+20, 6, 100);
+        ctx.fillStyle="rgba(255,255,255,.96)";
+        ctx.fillRect(x-90, top, 180, 44);
+        ctx.fillStyle="#000";
+        ctx.font="15px system-ui";
+        ctx.fillText(p.name, x-80, top+14);
+        ctx.font="12px system-ui";
+        ctx.fillText(p.subtitle, x-80, top+30);
+        ctx.fillStyle=p.visited ? "#2a9d8f" : "#e76f51";
+        ctx.beginPath();
+        ctx.arc(x+70, top+22, 7, 0, Math.PI*2);
+        ctx.fill();
       });
     }
 
@@ -481,9 +564,10 @@
       if(!img || !m) return;
       const f = (s === "walk" ? WALK_FRAMES : 1);
       const w = m.frameW, h = m.frameH, ch = m.contentHeight, bm = m.bottomMargin;
-      const scale = DOG_BODY_SCREEN_HEIGHT/ch;
+      const scale = DOG_BODY_SCREEN_HEIGHT / ch;
       const dw = w*scale, dh = h*scale, bms = bm*scale;
-      let fi=0; if(s==="walk" && f>1) fi=Math.floor(dog.frame/6)%f;
+      let fi = 0;
+      if(s==="walk" && f>1) fi = Math.floor(dog.frame/6) % f;
       const sx = fi*w;
       const dx = dog.x - dw/2;
       const dy = dogGroundY() - (dh - bms);
@@ -491,9 +575,9 @@
       ctx.save();
       if(dog.dir<0){
         ctx.scale(-1,1);
-        ctx.drawImage(img,sx,0,w,h,-dx-dw,dy,dw,dh);
+        ctx.drawImage(img, sx,0,w,h, -dx-dw, dy, dw, dh);
       } else {
-        ctx.drawImage(img,sx,0,w,h,dx,dy,dw,dh);
+        ctx.drawImage(img, sx,0,w,h, dx, dy, dw, dh);
       }
       ctx.restore();
     }
