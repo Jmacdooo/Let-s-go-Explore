@@ -2,731 +2,262 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Calm Dog v9.3 — Fixed Sprite Cropping + Lower Walk</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Forever Dog — Stable (One Dog, Grounded, Walk Now)</title>
   <style>
-    html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;background:#eaf4ff;}
-    canvas{display:block;width:100vw;height:100vh;}
-
-    #banner{
-      position:fixed;left:50%;top:10px;transform:translateX(-50%);
-      z-index:20;font-weight:1000;letter-spacing:.4px;
-      background:rgba(0,0,0,.70);color:#fff;padding:8px 12px;border-radius:999px;
-      box-shadow:0 10px 30px rgba(0,0,0,.20);
+    body{ margin:0; background:#bde0fe; overflow:hidden; font-family:system-ui,-apple-system,sans-serif; }
+    canvas{ display:block; width:100vw; height:100vh; }
+    #controls{
+      position:fixed; left:10px; top:10px; z-index:20;
+      background:rgba(255,255,255,.92);
+      padding:10px 12px; border-radius:14px;
+      box-shadow:0 10px 30px rgba(0,0,0,.18);
+      display:flex; flex-wrap:wrap; gap:6px; align-items:center;
     }
-    #hud{
-      position:fixed;left:12px;top:12px;z-index:21;
-      background:rgba(255,255,255,.92);box-shadow:0 10px 30px rgba(0,0,0,.18);
-      padding:10px 12px;border-radius:16px;user-select:none;
-      display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+    button{
+      padding:8px 10px; border-radius:12px; border:none; cursor:pointer;
+      font-weight:700;
+      background:#ffb703;
     }
-    .btn{border:none;border-radius:14px;padding:10px 12px;font-weight:900;cursor:pointer;background:#ffd166;}
-    .btn.secondary{background:#e9ecef;}
-
-    #hint{
-      position:fixed;left:50%;bottom:14px;transform:translateX(-50%);
-      background:rgba(255,255,255,.92);box-shadow:0 10px 30px rgba(0,0,0,.18);
-      padding:10px 14px;border-radius:16px;
-      font-weight:900;text-align:center;max-width:min(920px, calc(100vw - 24px));
-      z-index:21;line-height:1.25;
-    }
-    #hint small{display:block;font-weight:800;opacity:.75;margin-top:4px;}
-
-    #errorBanner{
-      position:fixed;left:12px;right:12px;top:78px;z-index:9999;
-      background:rgba(180,0,0,.92);color:#fff;
-      padding:12px 14px;border-radius:14px;
-      font-weight:800;display:none;white-space:pre-wrap;
-      box-shadow:0 10px 30px rgba(0,0,0,.25);
-    }
+    button.secondary{ background:#e5e7eb; }
+    #hint{ font-size:12px; opacity:.75; margin-left:6px; }
   </style>
 </head>
 <body>
-
-  <div id="banner">CALM DOG v9.3 ✅</div>
-
-  <div id="hud">
-    <button class="btn" id="startBtn">Start</button>
-    <button class="btn secondary" id="restartBtn">Restart</button>
-    <button class="btn secondary" id="voiceBtn">Voice: ON</button>
-    <button class="btn secondary" id="musicBtn">Music: OFF</button>
+  <div id="controls">
+    <button id="walkNow">Walk Now ➡️</button>
+    <button id="idle" class="secondary">Idle (Breathing)</button>
+    <button id="stop" class="secondary">Stop</button>
+    <span id="hint">Fixes: grounded dog + no ghost dogs</span>
   </div>
 
-  <div id="hint">
-    Ready to be calm and go for a walk?
-    <small>Tap Start (or tap anywhere) to begin.</small>
-  </div>
-
-  <div id="errorBanner"></div>
   <canvas id="c"></canvas>
 
-<script>
-(function(){
-  // ---------- Error banner ----------
-  var errorBanner = document.getElementById("errorBanner");
-  function showError(msg){
-    errorBanner.style.display = "block";
-    errorBanner.textContent = String(msg);
-  }
-  window.addEventListener("error", function(e){
-    var m = (e && e.error && e.error.stack) ? e.error.stack : ((e && e.message) ? e.message : e);
-    showError("JS Error:\n" + m);
-  });
-  window.addEventListener("unhandledrejection", function(e){
-    var r = (e && e.reason && e.reason.stack) ? e.reason.stack : ((e && e.reason) ? e.reason : e);
-    showError("Promise Error:\n" + r);
-  });
+  <script>
+    // =========================
+    // CONFIG — SET THESE
+    // =========================
 
-  // ---------- SETTINGS ----------
-  var PHASE_MS = 4500;               // breathing speed
-  var SCALE_MIN = 0.62;
-  var SCALE_MAX = 2.05;
+    // OPTION 1 (original strip): 6 frames, 256x256 each
+    // const SPRITE_SRC = "assets/dog_walk.png";
+    // const FRAME_W = 256, FRAME_H = 256;
 
-  // dog lower during breathing so it never covers numbers
-  var BREATH_DOG_DROP_BASE = 80;
-  var BREATH_DOG_DROP_PER_SCALE = 65;
-  var BREATH_DOG_DROP_MAX = 190;
+    // OPTION 2 (padded strip you made): 6 frames, 276x276 each (256 + 10px padding on each side)
+    const SPRITE_SRC = "assets/dog_strip_padded.png";
+    const FRAME_W = 276, FRAME_H = 276;
 
-  // dog lower during walking/exploring
-  var WALK_DOG_DROP = 55;            // <— lowers the walking dog
+    const FRAME_COUNT = 6;
 
-  // ground height
-  var GROUND_Y_PCT = 0.82;           // <— slightly lower ground
+    // Optional background image (safe: code still works if missing)
+    const BG_SRC = "assets/yosemite.png";
 
-  // walk off-screen transition
-  var EXIT_MARGIN = 240;
-  var TRANSITION_SPEED_MULT = 0.75;
+    // =========================
+    // CANVAS SETUP
+    // =========================
+    const canvas = document.getElementById("c");
+    const ctx = canvas.getContext("2d");
 
-  // ignore landmarks briefly after explore begins
-  var EXPLORE_GRACE_MS = 1300;
-
-  // ✅ IMPORTANT: set this to 6 if you still see multiple dogs inside one frame
-  // (most walk strips are 6). Leave 0 to auto-detect.
-  var WALK_FRAMES_FORCE = 6;
-
-  // ---------- ASSETS (optional) ----------
-  var ASSETS = {
-    bg:    "./assets/yosemite.png",
-    idle:  "./assets/dog_idle.png",
-    walk:  "./assets/dog_walk.png",
-    music: "./assets/music.mp3"
-  };
-
-  // ---------- Canvas ----------
-  var canvas = document.getElementById("c");
-  var ctx = canvas.getContext("2d");
-  function resize(){
-    var dpr = Math.max(1, window.devicePixelRatio || 1);
-    canvas.width  = Math.floor(window.innerWidth  * dpr);
-    canvas.height = Math.floor(window.innerHeight * dpr);
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-  }
-  window.addEventListener("resize", resize);
-  resize();
-
-  // ---------- UI ----------
-  var hint = document.getElementById("hint");
-  var startBtn = document.getElementById("startBtn");
-  var restartBtn = document.getElementById("restartBtn");
-  var voiceBtn = document.getElementById("voiceBtn");
-  var musicBtn = document.getElementById("musicBtn");
-
-  // ---------- Safe image load ----------
-  function loadImage(src, cb){
-    var img = new Image();
-    img.onload = function(){ cb(img); };
-    img.onerror = function(){ cb(null); };
-    img.src = src;
-  }
-  var bgImg=null, idleImg=null, walkImg=null;
-
-  // Final walk frame count used for animation + cropping
-  var walkFrames = 1;
-
-  function clamp(n,a,b){ return Math.max(a, Math.min(b,n)); }
-
-  // Robust frame detection (but we will FORCE by default to 6)
-  function detectFrames(img){
-    if (!img) return 1;
-    var ratio = img.width / Math.max(1, img.height);
-    if (ratio < 1.6) return 1;
-
-    // Prefer a frame aspect near 1.0 (height ~= frame width)
-    var best = 6, bestScore = 1e9;
-    for (var n=2;n<=12;n++){
-      var fw = img.width / n;
-      var aspect = img.height / fw;      // height / frameWidth
-      var score = Math.abs(aspect - 1.0) + Math.abs(ratio - n) * 0.15;
-      if (aspect < 0.55 || aspect > 2.2) score += 10;
-      if (score < bestScore){ bestScore = score; best = n; }
+    function resize() {
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      canvas.width = Math.floor(window.innerWidth * dpr);
+      canvas.height = Math.floor(window.innerHeight * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // draw in CSS pixels
     }
-    return best;
-  }
+    window.addEventListener("resize", resize);
+    resize();
 
-  function recalcWalkFrames(){
-    if (!walkImg){ walkFrames = 1; return; }
-    if (WALK_FRAMES_FORCE && WALK_FRAMES_FORCE > 0){
-      walkFrames = clamp(WALK_FRAMES_FORCE, 1, 12);
-    } else {
-      walkFrames = clamp(detectFrames(walkImg), 1, 12);
-    }
-  }
+    // =========================
+    // LOAD IMAGES
+    // =========================
+    const sprite = new Image();
+    sprite.src = SPRITE_SRC;
 
-  loadImage(ASSETS.bg,   function(i){ bgImg=i; });
-  loadImage(ASSETS.idle, function(i){ idleImg=i; });
-  loadImage(ASSETS.walk, function(i){
-    walkImg=i;
-    recalcWalkFrames();
-  });
+    const bg = new Image();
+    bg.src = BG_SRC;
 
-  // ---------- Music ----------
-  var bgm = new Audio();
-  bgm.src = ASSETS.music;
-  bgm.loop = true;
-  bgm.volume = 0.25;
-  var musicOn = false;
+    let spriteReady = false;
+    sprite.onload = () => { spriteReady = true; };
+    sprite.onerror = () => { console.warn("Sprite not found:", SPRITE_SRC); };
 
-  function setMusic(on){
-    musicOn = !!on;
-    musicBtn.textContent = musicOn ? "Music: ON" : "Music: OFF";
-    try{
-      if (!musicOn) bgm.pause();
-      else {
-        var p = bgm.play();
-        if (p && p.catch) p.catch(function(){});
-      }
-    }catch(e){}
-  }
-  musicBtn.addEventListener("click", function(){ setMusic(!musicOn); });
+    let bgReady = false;
+    bg.onload = () => { bgReady = true; };
+    bg.onerror = () => { /* OK if missing */ };
 
-  // ---------- Voice ----------
-  var hasSpeech = ("speechSynthesis" in window) && ("SpeechSynthesisUtterance" in window);
-  var VOICE = { on:true, voice:null, rate:0.88, pitch:2.25, speaking:false, queue:[], onDone:null };
-  var speechKeepAlive = null;
+    // =========================
+    // DOG STATE
+    // =========================
+    const dog = {
+      x: 60,
+      // y is computed from ground
+      scale: 1,
+      vx: 0,
+      facing: "left", // "left" or "right" (you said left)
+      state: "idle",  // "idle" | "walk" | "stop"
+      breathe: true,
+      // animation
+      frame: 0,
+      frameMs: 90,
+      lastFrameT: 0
+    };
 
-  function pickVoice(){
-    if (!hasSpeech) return;
-    var vs = speechSynthesis.getVoices ? speechSynthesis.getVoices() : [];
-    var en = [];
-    for (var i=0;i<vs.length;i++){
-      var lang = (vs[i].lang || "").toLowerCase();
-      if (lang.indexOf("en") === 0) en.push(vs[i]);
-    }
-    function findBy(re){
-      for (var j=0;j<en.length;j++){
-        if (re.test(en[j].name)) return en[j];
-      }
-      return null;
-    }
-    VOICE.voice =
-      findBy(/(Google US English|Samantha|Ava|Aria|Jenny|Allison|Zira)/i) ||
-      findBy(/Google/i) ||
-      en[0] || vs[0] || null;
-  }
-  if (hasSpeech){
-    speechSynthesis.onvoiceschanged = pickVoice;
-    pickVoice();
-  }
-
-  function cancelSpeech(){
-    if (!hasSpeech) return;
-    try{ speechSynthesis.cancel(); }catch(e){}
-    VOICE.queue.length = 0;
-    VOICE.speaking = false;
-    VOICE.onDone = null;
-    if (speechKeepAlive){ clearInterval(speechKeepAlive); speechKeepAlive = null; }
-  }
-
-  function say(text, interrupt){
-    if (!VOICE.on || !hasSpeech) return;
-    if (interrupt) cancelSpeech();
-    VOICE.queue.push(String(text));
-    if (!VOICE.speaking) speakNext();
-  }
-
-  function speakNext(){
-    if (!VOICE.on || !hasSpeech){ VOICE.speaking=false; return; }
-
-    var next = VOICE.queue.shift();
-    if (!next){
-      VOICE.speaking = false;
-      if (speechKeepAlive){ clearInterval(speechKeepAlive); speechKeepAlive = null; }
-      if (typeof VOICE.onDone === "function"){
-        var f = VOICE.onDone; VOICE.onDone = null; f();
-      }
-      return;
+    function groundY() {
+      // "floor" line above bottom so paws don't clip
+      return window.innerHeight - 24;
     }
 
-    VOICE.speaking = true;
-
-    try{
-      var u = new SpeechSynthesisUtterance(next);
-      u.lang = "en-US";
-      if (VOICE.voice) u.voice = VOICE.voice;
-      u.rate = VOICE.rate;
-      u.pitch = VOICE.pitch;
-      u.volume = 1.0;
-
-      if (speechKeepAlive) clearInterval(speechKeepAlive);
-      speechKeepAlive = setInterval(function(){ try{ speechSynthesis.resume(); }catch(e){} }, 250);
-
-      u.onend = function(){
-        VOICE.speaking = false;
-        if (speechKeepAlive){ clearInterval(speechKeepAlive); speechKeepAlive = null; }
-        speakNext();
-      };
-      u.onerror = function(){
-        VOICE.speaking = false;
-        if (speechKeepAlive){ clearInterval(speechKeepAlive); speechKeepAlive = null; }
-        speakNext();
-      };
-
-      speechSynthesis.speak(u);
-
-      setTimeout(function(){
-        if (VOICE.speaking){ cancelSpeech(); speakNext(); }
-      }, 22000);
-
-    }catch(e){
-      VOICE.speaking = false;
-      if (speechKeepAlive){ clearInterval(speechKeepAlive); speechKeepAlive = null; }
-      speakNext();
+    function dogDrawY() {
+      // Feet sit on ground
+      return Math.round(groundY() - FRAME_H * dog.scale);
     }
-  }
 
-  function speakSequence(lines, done){
-    if (!VOICE.on || !hasSpeech){
-      if (typeof done === "function") done();
-      return;
+    function clampDog() {
+      const margin = 10;
+      const maxX = window.innerWidth - FRAME_W * dog.scale - margin;
+      if (dog.x < margin) dog.x = margin;
+      if (dog.x > maxX) dog.x = maxX;
     }
-    VOICE.onDone = (typeof done === "function") ? done : null;
-    for (var i=0;i<lines.length;i++) say(lines[i], false);
-  }
 
-  voiceBtn.addEventListener("click", function(){
-    VOICE.on = !VOICE.on;
-    voiceBtn.textContent = VOICE.on ? "Voice: ON" : "Voice: OFF";
-    if (!VOICE.on) cancelSpeech();
-  });
-
-  // ---------- Input ----------
-  var left=false, right=false;
-  window.addEventListener("keydown", function(e){
-    if (e.key==="ArrowLeft") left=true;
-    if (e.key==="ArrowRight") right=true;
-  });
-  window.addEventListener("keyup", function(e){
-    if (e.key==="ArrowLeft") left=false;
-    if (e.key==="ArrowRight") right=false;
-  });
-  function handlePointer(e, isDown){
-    var x = e.clientX;
-    if (!isDown){ left=false; right=false; return; }
-    if (x < window.innerWidth/2){ left=true; right=false; }
-    else { right=true; left=false; }
-  }
-  window.addEventListener("pointerdown", function(e){ handlePointer(e,true); });
-  window.addEventListener("pointermove", function(e){ if (e.buttons) handlePointer(e,true); });
-  window.addEventListener("pointerup", function(e){ handlePointer(e,false); });
-  window.addEventListener("pointercancel", function(e){ handlePointer(e,false); });
-
-  // ---------- Landmarks ----------
-  var parks = [
-    { name:"Circle",   pos:0.18, visited:false, icon:"\u25CF" },
-    { name:"Square",   pos:0.36, visited:false, icon:"\u25A0" },
-    { name:"Triangle", pos:0.54, visited:false, icon:"\u25B2" },
-    { name:"Star",     pos:0.72, visited:false, icon:"\u2605" },
-    { name:"Heart",    pos:0.88, visited:false, icon:"\u2665" }
-  ];
-
-  // ---------- State ----------
-  var MODE = { INTRO:"intro", OPENING:"opening", BREATH:"breath", TRANSITION:"transition", EXPLORE:"explore", STOP:"stop" };
-  var mode = MODE.INTRO;
-
-  var dog = { x: window.innerWidth*0.5, speed:240, frame:0, animMs:0, warmupFrames:0 };
-
-  var TOTAL_CYCLES = 3;
-  var cycle = 1;
-  var phase = "in";
-  var phaseStart = 0;
-  var exploreStartMs = 0;
-
-  function easeInOut(t){ return (t<0.5) ? (2*t*t) : (1 - Math.pow(-2*t+2,2)/2); }
-  function lerp(a,b,t){ return a + (b-a)*t; }
-
-  // Breath speaking (split so it never drops words)
-  var phaseSpeakTimer = null;
-  var lastPhaseKey = "";
-  function speakPhase(phaseName){
-    if (!VOICE.on || !hasSpeech) return;
-
-    var key = cycle + "-" + phaseName;
-    if (key === lastPhaseKey) return;
-    lastPhaseKey = key;
-
-    if (phaseSpeakTimer){ clearTimeout(phaseSpeakTimer); phaseSpeakTimer=null; }
-    cancelSpeech();
-
-    phaseSpeakTimer = setTimeout(function(){
-      if (phaseName === "in"){
-        say("Breathe in.", false);
-        say("One... two... three...", false);
-      } else {
-        say("Breathe out.", false);
-        say("One... two... three...", false);
-      }
-    }, 260);
-  }
-
-  function reset(){
-    cancelSpeech();
-    if (phaseSpeakTimer){ clearTimeout(phaseSpeakTimer); phaseSpeakTimer=null; }
-    lastPhaseKey = "";
-
-    mode = MODE.INTRO;
-    cycle = 1; phase="in"; phaseStart=0;
-
-    dog.x = window.innerWidth*0.5;
-    dog.frame=0; dog.animMs=0; dog.warmupFrames=0;
-
-    for (var i=0;i<parks.length;i++) parks[i].visited=false;
-
-    hint.innerHTML = "Ready to be calm and go for a walk?<small>Tap Start (or tap anywhere) to begin.</small>";
-  }
-
-  function startBreathing(){
-    mode = MODE.BREATH;
-    cycle = 1;
-    phase = "in";
-    phaseStart = performance.now();
-    lastPhaseKey = "";
-    hint.innerHTML = "Let's do <b>3 breaths</b>.<small>In 1-2-3... Out 1-2-3...</small>";
-    speakPhase("in");
-  }
-
-  function beginTransitionWalk(){
-    mode = MODE.TRANSITION;
-    dog.warmupFrames = 5;
-    dog.frame = 0;
-    dog.animMs = 0;
-    hint.innerHTML = "Walking...<small>Watch me walk off screen to start our adventure!</small>";
-    speakSequence(["Great job!", "Now let's walk."], function(){});
-  }
-
-  function beginExplore(){
-    mode = MODE.EXPLORE;
-    exploreStartMs = performance.now();
-    dog.warmupFrames = 5;
-    hint.innerHTML = "Let's go exploring!<small>Hold left/right side of the screen to move.</small>";
-    speakSequence(["Let's go exploring!", "What do you see?", "Look for shapes!"], function(){});
-  }
-
-  function stopAt(name){
-    mode = MODE.STOP;
-    left=false; right=false;
-    hint.innerHTML = "You found a <b>"+name+"</b>!<small>Tap anywhere to keep walking.</small>";
-    say("I see a " + name + "!", true);
-  }
-
-  var starting = false;
-  function startFlow(){
-    if (starting) return;
-    if (mode !== MODE.INTRO) return;
-    starting = true;
-
-    if (!musicOn) setMusic(true);
-
-    mode = MODE.OPENING;
-    dog.x = window.innerWidth*0.5;
-    hint.innerHTML = "Getting ready...<small>Listen to the calm dog.</small>";
-
-    speakSequence([
-      "Hi!",
-      "Let's get ready for a walk.",
-      "First we calm our bodies and our minds before we begin.",
-      "Let's breathe together.",
-      "Ready?"
-    ], function(){
-      startBreathing();
-      starting = false;
+    // =========================
+    // BUTTONS
+    // =========================
+    document.getElementById("walkNow").addEventListener("click", () => {
+      dog.state = "walk";
+      dog.breathe = false;           // SKIP breathing
+      dog.vx = 2.4;                  // walk speed to the right
+      dog.facing = "right";
+      dog.frame = 0;
+      dog.lastFrameT = 0;
     });
-  }
 
-  startBtn.addEventListener("click", startFlow);
-  restartBtn.addEventListener("click", reset);
+    document.getElementById("idle").addEventListener("click", () => {
+      dog.state = "idle";
+      dog.breathe = true;
+      dog.vx = 0;
+      dog.facing = "left";           // default left
+      dog.frame = 0;
+      dog.lastFrameT = 0;
+    });
 
-  window.addEventListener("click", function(){
-    if (mode === MODE.INTRO) startFlow();
-    else if (mode === MODE.STOP){
-      mode = MODE.EXPLORE;
-      exploreStartMs = performance.now();
-      hint.innerHTML = "Let's go exploring!<small>Hold left/right side of the screen to move.</small>";
-    }
-  });
+    document.getElementById("stop").addEventListener("click", () => {
+      dog.state = "stop";
+      dog.breathe = false;
+      dog.vx = 0;
+      dog.frame = 0;
+      dog.lastFrameT = 0;
+    });
 
-  // ---------- Drawing ----------
-  function coverDraw(img, w, h){
-    var iw = img.width, ih = img.height;
-    var sc = Math.max(w/iw, h/ih);
-    var dw = iw*sc, dh = ih*sc;
-    ctx.drawImage(img, (w-dw)/2, (h-dh)/2, dw, dh);
-  }
-
-  function drawCartoonDog(cx, cy, dw, dh){
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.fillStyle = "rgba(35,45,70,.92)";
-    ctx.beginPath(); ctx.ellipse(0, 0, dw*0.28, dh*0.20, 0, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(dw*0.16, -dh*0.06, dw*0.16, dh*0.14, 0, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = "rgba(25,35,55,.92)";
-    ctx.beginPath(); ctx.ellipse(dw*0.24, -dh*0.16, dw*0.09, dh*0.08, 0, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,.95)";
-    ctx.beginPath(); ctx.arc(dw*0.20, -dh*0.07, Math.max(3,dw*0.02), 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = "rgba(0,0,0,.85)";
-    ctx.beginPath(); ctx.arc(dw*0.205, -dh*0.07, Math.max(2,dw*0.01), 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,.80)";
-    ctx.lineWidth = Math.max(2, dw*0.01);
-    ctx.beginPath(); ctx.arc(dw*0.205, -dh*0.03, dw*0.05, 0.15*Math.PI, 0.85*Math.PI); ctx.stroke();
-    ctx.restore();
-  }
-
-  // ✅ PERFECT cropping: uses fractional boundaries so you NEVER see 2–3 dogs at once
-  function drawDog(img, cx, groundY, baseW, scale, frameIndex, flipX, yOffset, framesCount){
-    var frames = framesCount || 1;
-
-    if (!img){
-      var dw0 = baseW * scale;
-      var dh0 = dw0 * 0.90;
-      var cy0 = groundY - (dh0/2) + (dh0*0.07) + (yOffset || 0);
-      drawCartoonDog(cx, cy0, dw0, dh0);
-      return;
-    }
-
-    // Compute per-frame source rect using exact slice edges:
-    var f = (frames > 1) ? (frameIndex % frames) : 0;
-    var sx = Math.floor(f * img.width / frames);
-    var sx2 = Math.floor((f + 1) * img.width / frames);
-    var sw = Math.max(1, sx2 - sx);
-    var sh = img.height;
-
-    // Aspect from the frame slice (not whole strip)
-    var aspect = sh / sw;
-
-    var dw = baseW * scale;
-    var dh = dw * aspect;
-
-    // anchor to ground
-    var feetLift = dh * 0.07;
-    var cy = groundY - (dh/2) + feetLift + (yOffset || 0);
-
-    ctx.save();
-    ctx.translate(cx, cy);
-    if (flipX) ctx.scale(-1, 1);
-    ctx.drawImage(img, sx, 0, sw, sh, -dw/2, -dh/2, dw, dh);
-    ctx.restore();
-  }
-
-  function drawBackground(w,h){
-    var g = ctx.createLinearGradient(0,0,0,h);
-    g.addColorStop(0, "#eaf4ff");
-    g.addColorStop(1, "#f7fbff");
-    ctx.fillStyle = g;
-    ctx.fillRect(0,0,w,h);
-
-    if (bgImg){
-      coverDraw(bgImg, w, h);
-      ctx.fillStyle = "rgba(255,255,255,.10)";
-      ctx.fillRect(0,0,w,h);
-    }
-
-    var groundY = Math.round(h * GROUND_Y_PCT);
-    ctx.fillStyle = "rgba(40,90,70,.18)";
-    ctx.fillRect(0, groundY, w, h-groundY);
-    return groundY;
-  }
-
-  function drawParks(w, groundY){
-    ctx.textAlign = "center";
-    for (var i=0;i<parks.length;i++){
-      var p = parks[i];
-      var px = p.pos*w;
-
-      ctx.fillStyle = p.visited ? "rgba(0,140,90,.80)" : "rgba(0,0,0,.20)";
-      ctx.beginPath(); ctx.arc(px, groundY-10, 7, 0, Math.PI*2); ctx.fill();
-
-      ctx.fillStyle = "rgba(0,0,0,.75)";
-      ctx.font = "900 16px system-ui, -apple-system, Segoe UI, Arial";
-      ctx.fillText(p.icon, px, groundY - 22);
-
-      ctx.font = "800 12px system-ui, -apple-system, Segoe UI, Arial";
-      ctx.fillText(p.name, px, groundY+18);
-
-      if (p.visited){
-        ctx.font="900 14px system-ui, -apple-system, Segoe UI, Arial";
-        ctx.fillText("✓", px, groundY+34);
-      }
-    }
-  }
-
-  // ---------- Updates ----------
-  function updateWalkAnim(dt){
-    dog.animMs += dt*1000;
-    if (dog.animMs >= 120){
-      dog.animMs = 0;
-      dog.frame = (dog.frame + 1) % Math.max(1, walkFrames);
-      if (dog.warmupFrames > 0) dog.warmupFrames--;
-    }
-  }
-
-  function updateBreath(now){
-    var elapsed = now - phaseStart;
-    var t = Math.min(1, elapsed / PHASE_MS);
-    var e = easeInOut(t);
-
-    var scale = (phase==="in") ? lerp(SCALE_MIN, SCALE_MAX, e) : lerp(SCALE_MAX, SCALE_MIN, e);
-
-    var beatLen = PHASE_MS / 3;
-    var beat = Math.min(3, Math.floor(elapsed / beatLen) + 1);
-
-    if (t >= 1){
-      if (phase === "in"){
-        phase = "out";
-        phaseStart = now;
-        speakPhase("out");
+    // =========================
+    // DRAW HELPERS
+    // =========================
+    function drawBackground() {
+      // Always draw after clearRect (prevents ghost dogs)
+      if (bgReady) {
+        // cover canvas
+        const w = window.innerWidth, h = window.innerHeight;
+        const iw = bg.naturalWidth || 1, ih = bg.naturalHeight || 1;
+        const scale = Math.max(w / iw, h / ih);
+        const dw = iw * scale, dh = ih * scale;
+        const dx = (w - dw) / 2, dy = (h - dh) / 2;
+        ctx.drawImage(bg, dx, dy, dw, dh);
       } else {
-        if (cycle >= TOTAL_CYCLES){
-          beginTransitionWalk();
-        } else {
-          cycle += 1;
-          phase = "in";
-          phaseStart = now;
-          speakPhase("in");
+        // fallback sky
+        ctx.fillStyle = "#bde0fe";
+        ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+      }
+
+      // optional ground line (debug)
+      // ctx.strokeStyle = "rgba(0,0,0,.12)";
+      // ctx.beginPath(); ctx.moveTo(0, groundY()); ctx.lineTo(window.innerWidth, groundY()); ctx.stroke();
+    }
+
+    function drawDog(t) {
+      if (!spriteReady) return;
+
+      // breathing effect (subtle scale pulse)
+      let breatheScale = 1;
+      if (dog.breathe) {
+        breatheScale = 1 + 0.012 * Math.sin(t / 450);
+      }
+
+      const sx = dog.frame * FRAME_W;
+      const sy = 0;
+
+      const dw = FRAME_W * dog.scale * breatheScale;
+      const dh = FRAME_H * dog.scale * breatheScale;
+
+      // anchor feet on ground even with breathing:
+      const dx = dog.x;
+      const dy = Math.round(groundY() - dh);
+
+      ctx.save();
+
+      // flip if facing left (since walkNow sets right)
+      if (dog.facing === "left") {
+        // draw flipped around the sprite's center
+        ctx.translate(dx + dw / 2, 0);
+        ctx.scale(-1, 1);
+        ctx.translate(-(dx + dw / 2), 0);
+      }
+
+      ctx.drawImage(
+        sprite,
+        sx, sy, FRAME_W, FRAME_H,
+        dx, dy, dw, dh
+      );
+
+      ctx.restore();
+    }
+
+    // =========================
+    // UPDATE
+    // =========================
+    function update(t) {
+      // walk movement
+      if (dog.state === "walk") {
+        dog.x += dog.vx;
+
+        // wrap around
+        const maxX = window.innerWidth - FRAME_W * dog.scale - 10;
+        if (dog.x > maxX) dog.x = 10;
+      }
+
+      clampDog();
+
+      // animate frames only if walking
+      if (dog.state === "walk") {
+        if (!dog.lastFrameT) dog.lastFrameT = t;
+        if (t - dog.lastFrameT >= dog.frameMs) {
+          dog.frame = (dog.frame + 1) % FRAME_COUNT;
+          dog.lastFrameT = t;
         }
+      } else {
+        // idle/stop: hold frame 0
+        dog.frame = 0;
       }
     }
-    return { scale: scale, beat: beat };
-  }
 
-  function updateTransition(dt, w){
-    updateWalkAnim(dt);
-    dog.x += dog.speed * TRANSITION_SPEED_MULT * dt;
-    if (dog.x > w + EXIT_MARGIN){
-      dog.x = -EXIT_MARGIN;
-      beginExplore();
-    }
-  }
+    // =========================
+    // SINGLE LOOP (NO DUPLICATES)
+    // =========================
+    let rafId = null;
 
-  function updateExplore(dt, w){
-    updateWalkAnim(dt);
-    var canMove = (dog.warmupFrames === 0);
+    function loop(t) {
+      // Clear first -> prevents “3 dogs” trails
+      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
-    if (canMove){
-      if (left)  dog.x -= dog.speed * dt;
-      if (right) dog.x += dog.speed * dt;
-      if (!left && !right) dog.x += (dog.speed * 0.20) * dt;
+      drawBackground();
+      update(t);
+      drawDog(t);
+
+      rafId = requestAnimationFrame(loop);
     }
 
-    dog.x = Math.max(60, Math.min(w - 60, dog.x));
-
-    var now = performance.now();
-    if ((now - exploreStartMs) < EXPLORE_GRACE_MS) return;
-
-    var center = dog.x;
-    for (var i=0;i<parks.length;i++){
-      var p = parks[i];
-      var px = p.pos * w;
-      if (!p.visited && Math.abs(center - px) < 45 && canMove){
-        p.visited = true;
-        stopAt(p.name);
-        break;
-      }
-    }
-  }
-
-  // ---------- Main loop ----------
-  var last = performance.now();
-  function loop(now){
-    var w = window.innerWidth;
-    var h = window.innerHeight;
-    var dt = Math.min(0.05, (now-last)/1000);
-    last = now;
-
-    var groundY = drawBackground(w,h);
-    drawParks(w, groundY);
-
-    var baseW = Math.min(360, Math.max(180, w*0.30));
-    var scale = 1.08;
-
-    if (mode === MODE.INTRO || mode === MODE.OPENING || mode === MODE.BREATH){
-      dog.x = w*0.5;
+    function start() {
+      if (rafId) return; // prevents multiple loops
+      rafId = requestAnimationFrame(loop);
     }
 
-    if (mode === MODE.BREATH){
-      var b = updateBreath(now);
-      scale = b.scale;
-
-      ctx.fillStyle = "rgba(0,0,0,.75)";
-      ctx.textAlign = "center";
-      ctx.font = "900 22px system-ui, -apple-system, Segoe UI, Arial";
-      ctx.fillText("Breath " + cycle + " of 3", w*0.5, 92);
-
-      ctx.font = "900 34px system-ui, -apple-system, Segoe UI, Arial";
-      ctx.fillText((phase === "in") ? "IN..." : "OUT...", w*0.5, 136);
-
-      ctx.font = "1000 70px system-ui, -apple-system, Segoe UI, Arial";
-      var beatLen = PHASE_MS / 3;
-      var beat = Math.min(3, Math.floor((now - phaseStart) / beatLen) + 1);
-      ctx.fillText(String(beat), w*0.5, 212);
-    }
-
-    if (mode === MODE.TRANSITION) updateTransition(dt, w);
-    if (mode === MODE.EXPLORE)    updateExplore(dt, w);
-
-    if (mode === MODE.STOP){
-      scale = 1.06 + Math.sin(now/700)*0.02;
-    }
-
-    var usingWalk = (mode === MODE.TRANSITION || mode === MODE.EXPLORE);
-    var framesCount = usingWalk ? Math.max(1, walkFrames) : 1;
-    var img = usingWalk ? (walkImg || idleImg) : idleImg;
-
-    var frameIndex = usingWalk ? dog.frame : 0;
-    var flipX = left ? true : (right ? false : false);
-
-    var yOffset = 0;
-
-    // breathing drop
-    if (mode === MODE.BREATH){
-      var extra = Math.max(0, (scale - 1)) * BREATH_DOG_DROP_PER_SCALE;
-      yOffset += Math.min(BREATH_DOG_DROP_MAX, BREATH_DOG_DROP_BASE + extra);
-    }
-
-    // walk drop (THIS fixes “dog too high”)
-    if (usingWalk || mode === MODE.STOP){
-      yOffset += WALK_DOG_DROP;
-    }
-
-    var drawX = (mode === MODE.TRANSITION || mode === MODE.EXPLORE || mode === MODE.STOP) ? dog.x : (w*0.5);
-    drawDog(img || null, drawX, groundY, baseW, scale, frameIndex, flipX, yOffset, framesCount);
-
-    // Debug line (confirm frames)
-    ctx.fillStyle = "rgba(0,0,0,.70)";
-    ctx.textAlign = "left";
-    ctx.font = "800 12px system-ui, -apple-system, Segoe UI, Arial";
-    ctx.fillText(
-      "walkFrames=" + walkFrames + " (FORCE=" + WALK_FRAMES_FORCE + ")  walkW=" + (walkImg?walkImg.width:0) + " walkH=" + (walkImg?walkImg.height:0),
-      14, h-14
-    );
-
-    requestAnimationFrame(loop);
-  }
-
-  // Init
-  walkFrames = (WALK_FRAMES_FORCE && WALK_FRAMES_FORCE>0) ? WALK_FRAMES_FORCE : 1;
-  reset();
-  requestAnimationFrame(loop);
-
-})();
-</script>
+    start();
+  </script>
 </body>
 </html>
