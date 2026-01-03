@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Calm Dog v6 — Baby-proof</title>
+  <title>Calm Dog v7 — Opening Script + Breathing</title>
   <style>
     html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;background:#eaf4ff;}
     canvas{display:block;width:100vw;height:100vh;}
@@ -44,7 +44,7 @@
 </head>
 <body>
 
-  <div id="banner">CALM DOG v6 ✅ (If you see this, the file loaded)</div>
+  <div id="banner">CALM DOG v7 ✅</div>
 
   <div id="hud">
     <button class="btn" id="startBtn">Start</button>
@@ -70,26 +70,29 @@
   window.addEventListener("error", (e)=>showError("JS Error:\n" + (e.error?.stack || e.message || e)));
   window.addEventListener("unhandledrejection", (e)=>showError("Promise Error:\n" + (e.reason?.stack || e.reason || e)));
 
-  // ---------- BABY-PROOF KNOBS ----------
+  // ---------- CALM SETTINGS ----------
   const PHASE_MS = 4200;                 // slower inhale/exhale (try 3600–5000)
   const SCALE_MIN = 0.62;
   const SCALE_MAX = 2.10;
 
   // Drop dog lower during breathing so it won't cover numbers:
-  const BREATH_DOG_DROP_BASE = 70;       // always drop this much during breath
-  const BREATH_DOG_DROP_PER_SCALE = 55;  // extra drop as dog gets bigger
+  const BREATH_DOG_DROP_BASE = 70;
+  const BREATH_DOG_DROP_PER_SCALE = 55;
   const BREATH_DOG_DROP_MAX = 170;
-  // -------------------------------------
+  // -------------------------------
 
-  // ---------- ASSETS (optional) ----------
-  // Ensure paths are EXACT (case matters on many hosts)
+  // ---------- OPTIONAL ASSETS ----------
+  // Put files here:
+  // ./assets/yosemite.png
+  // ./assets/dog_idle.png
+  // ./assets/dog_walk.png
   const ASSETS = {
     bg:   "./assets/yosemite.png",
     idle: "./assets/dog_idle.png",
     walk: "./assets/dog_walk.png"
   };
-  const WALK_FRAMES = 5; // set to 6 if your walk strip has 6 frames
-  // --------------------------------------
+  const WALK_FRAMES = 5; // change to 6 if your strip has 6 frames
+  // ------------------------------------
 
   const canvas = document.getElementById("c");
   const ctx = canvas.getContext("2d");
@@ -125,9 +128,9 @@
     ]);
   })();
 
-  // ---------- Voice (child-like) ----------
+  // ---------- Voice (child-like, sequential safe) ----------
   const hasSpeech = ("speechSynthesis" in window) && ("SpeechSynthesisUtterance" in window);
-  const VOICE = { on:true, speaking:false, queue:[], voice:null, rate:0.88, pitch:2.25 };
+  const VOICE = { on:true, voice:null, rate:0.88, pitch:2.25 };
 
   function pickVoice(){
     if (!hasSpeech) return;
@@ -146,41 +149,48 @@
   function cancelSpeech(){
     if (!hasSpeech) return;
     try{ speechSynthesis.cancel(); }catch(e){}
-    VOICE.queue.length = 0;
-    VOICE.speaking = false;
   }
-  function speakNext(){
-    const next = VOICE.queue.shift();
-    if (!next){ VOICE.speaking = false; return; }
-    VOICE.speaking = true;
-    try{
-      const u = new SpeechSynthesisUtterance(next);
+
+  // Speak ONE line and resolve when done (no overlap, baby-proof)
+  function sayAsync(text, { interrupt=false } = {}){
+    return new Promise((resolve)=>{
+      if (!VOICE.on || !hasSpeech){
+        resolve();
+        return;
+      }
+      if (interrupt) cancelSpeech();
+
+      const u = new SpeechSynthesisUtterance(String(text));
       if (VOICE.voice) u.voice = VOICE.voice;
       u.rate = VOICE.rate;
       u.pitch = VOICE.pitch;
       u.volume = 1.0;
-      u.onend = ()=>{ VOICE.speaking=false; speakNext(); };
-      u.onerror = ()=>{ VOICE.speaking=false; speakNext(); };
-      speechSynthesis.speak(u);
-      setTimeout(()=>{ if(VOICE.speaking){ cancelSpeech(); speakNext(); } }, 7000);
-    }catch(e){
-      VOICE.speaking=false; speakNext();
-    }
-  }
-  function dogSay(text, {interrupt=false} = {}){
-    if (!VOICE.on || !hasSpeech) return;
-    const cleaned = String(text).replace(/\s+/g," ").trim();
-    if (!cleaned) return;
-    if (interrupt) cancelSpeech();
-    VOICE.queue.push(cleaned);
-    if (!VOICE.speaking) speakNext();
+
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        resolve();
+      };
+
+      u.onend = finish;
+      u.onerror = finish;
+
+      try{
+        speechSynthesis.speak(u);
+      }catch(e){
+        finish();
+      }
+
+      // watchdog so we never hang
+      setTimeout(finish, 8000);
+    });
   }
 
   voiceBtn.addEventListener("click", ()=>{
     VOICE.on = !VOICE.on;
     voiceBtn.textContent = VOICE.on ? "Voice: ON" : "Voice: OFF";
     if (!VOICE.on) cancelSpeech();
-    else dogSay("Hi! I’m your calm dog!", {interrupt:true});
   });
 
   // ---------- Baby-proof input (hold left/right half of screen) ----------
@@ -208,13 +218,12 @@
     { name:"Landmark 5", pos:0.88, visited:false },
   ];
 
-  // ---------- Dog + State ----------
-  const MODE = { INTRO:"intro", BREATH:"breath", WALK:"walk", STOP:"stop" };
+  // ---------- State ----------
+  const MODE = { INTRO:"intro", OPENING:"opening", BREATH:"breath", WALK:"walk", STOP:"stop" };
   let mode = MODE.INTRO;
 
   const dog = { x: window.innerWidth*0.5, speed:240, frame:0, animMs:0, warmupFrames:0 };
 
-  // Breathing script
   const TOTAL_CYCLES = 3;
   let cycle = 1;
   let phase = "in";          // "in" | "out"
@@ -223,9 +232,12 @@
   const easeInOut = (t)=> t<0.5 ? 2*t*t : 1 - Math.pow(-2*t+2,2)/2;
   const lerp = (a,b,t)=> a + (b-a)*t;
 
-  function speakPhase(phaseName){
-    if (phaseName === "in") dogSay("In… one… two… three…", {interrupt:true});
-    else dogSay("Out… one… two… three…", {interrupt:true});
+  async function speakPhase(phaseName){
+    // Cancel any previous phrase so we never overlap
+    const line = (phaseName === "in")
+      ? "Breathe in… one… two… three…"
+      : "Breathe out… one… two… three…";
+    await sayAsync(line, { interrupt:true });
   }
 
   function reset(){
@@ -238,27 +250,55 @@
     hint.innerHTML = `Ready to be calm and go for a walk?<small>Tap Start (or tap anywhere) to begin.</small>`;
   }
 
-  function startFlow(){
+  let starting = false;
+  async function startFlow(){
+    if (starting) return;
     if (mode !== MODE.INTRO) return;
+
+    starting = true;
+    mode = MODE.OPENING;
+    dog.x = window.innerWidth*0.5;
+
+    hint.innerHTML = `Getting ready…<small>Listen to the calm dog.</small>`;
+
+    // Opening script (sequential, no overlap)
+    await sayAsync("Hi!", { interrupt:true });
+    await sayAsync("Let’s get ready for a walk.", {});
+    await sayAsync("First we calm our bodies and our minds before we begin.", {});
+    await sayAsync("Let’s breathe together.", {});
+    await sayAsync("Ready?", {});
+
+    // Now start breathing animation + first count
     mode = MODE.BREATH;
-    cycle = 1; phase="in"; phaseStart = performance.now();
-    speakPhase("in");
+    cycle = 1;
+    phase = "in";
+    phaseStart = performance.now();
+
     hint.innerHTML = `Let’s do <b>3 breaths</b>.<small>In 1-2-3… Out 1-2-3…</small>`;
+
+    // speak the first phase line
+    speakPhase("in");
+
+    starting = false;
   }
 
   function startWalking(){
     mode = MODE.WALK;
-    dog.warmupFrames = 5; // animate 5 frames first
+    dog.warmupFrames = 5;
     dog.frame = 0; dog.animMs = 0;
-    dogSay("Great job! Now let’s walk.", {interrupt:true});
+
+    // friendly transition
+    sayAsync("Great job!", { interrupt:true });
+    sayAsync("Now let’s walk.", {});
+
     hint.innerHTML = `Walking…<small>Hold left/right side of the screen to move.</small>`;
   }
 
   function stopAt(name){
     mode = MODE.STOP;
     left=false; right=false;
-    dogSay("We made it!", {interrupt:true});
-    dogSay(name + "!", {});
+    sayAsync("We made it!", { interrupt:true });
+    sayAsync(name + "!", {});
     hint.innerHTML = `We reached <b>${name}</b>!<small>Tap anywhere to keep walking.</small>`;
   }
 
@@ -336,7 +376,6 @@
   }
 
   function drawBackground(w,h){
-    // fallback gradient (never blank)
     const g = ctx.createLinearGradient(0,0,0,h);
     g.addColorStop(0, "#eaf4ff");
     g.addColorStop(1, "#f7fbff");
@@ -403,7 +442,6 @@
   }
 
   function updateWalk(dt, w){
-    // animate
     dog.animMs += dt*1000;
     if (dog.animMs >= 120){
       dog.animMs = 0;
@@ -445,17 +483,15 @@
     let scale = 1.08;
     let beat = 1;
 
-    if (mode === MODE.INTRO){
+    if (mode === MODE.INTRO || mode === MODE.OPENING || mode === MODE.BREATH){
       dog.x = w*0.5;
     }
 
     if (mode === MODE.BREATH){
-      dog.x = w*0.5;
       const b = updateBreath(now);
       scale = b.scale;
       beat = b.beat;
 
-      // Numbers at top
       ctx.fillStyle = "rgba(0,0,0,.75)";
       ctx.textAlign = "center";
       ctx.font = "900 22px system-ui, -apple-system, Segoe UI, Arial";
@@ -480,7 +516,7 @@
     const frameIndex = (mode === MODE.WALK ? dog.frame : 0);
     const flipX = left ? true : (right ? false : false);
 
-    // >>> This is the “lower dog during breathing” logic:
+    // Lower dog during breathing so it never covers the numbers
     let yOffset = 0;
     if (mode === MODE.BREATH){
       const extra = Math.max(0, (scale - 1)) * BREATH_DOG_DROP_PER_SCALE;
@@ -490,7 +526,7 @@
     const drawX = (mode === MODE.WALK || mode === MODE.STOP) ? dog.x : (w*0.5);
     drawDog(img, drawX, groundY, baseW, scale, frameIndex, flipX, yOffset);
 
-    // Status line (tells you instantly if paths are wrong)
+    // Status line
     ctx.fillStyle = "rgba(0,0,0,.70)";
     ctx.textAlign = "left";
     ctx.font = "800 12px system-ui, -apple-system, Segoe UI, Arial";
