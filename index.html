@@ -360,21 +360,32 @@
       }
     });
   }
+function drawDog(img, cx, groundY, baseW, scale, frameIndex, flipX, yOffset = 0){
+  const a = frameAspect(img);
+  const dw = baseW * scale;
+  const dh = dw * a;
 
-  function drawDog(img, cx, groundY, baseW, scale, frameIndex, flipX){
-    const a = frameAspect(img);
-    const dw = baseW * scale;
-    const dh = dw * a;
+  const feetLift = dh * 0.10;
+  const cy = groundY - (dh/2) + feetLift + yOffset; // <-- add yOffset here
 
-    // feet anchored
-    const feetLift = dh * 0.10;
-    const cy = groundY - (dh/2) + feetLift;
+  if (!img){
+    drawCartoonDog(cx, cy, dw, dh);
+    return;
+  }
 
-    // if no image => cartoon dog
-    if (!img){
-      drawCartoonDog(cx, cy, dw, dh);
-      return;
-    }
+  const frames = isStrip(img) ? WALK_FRAMES : 1;
+  const fw = frameW(img);
+  const fh = img.height;
+  const f = frames > 1 ? (frameIndex % frames) : 0;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  if (flipX) ctx.scale(-1,1);
+  ctx.drawImage(img, f*fw, 0, fw, fh, -dw/2, -dh/2, dw, dh);
+  ctx.restore();
+}
+
+  
 
     const frames = isStrip(img) ? WALK_FRAMES : 1;
     const fw = frameW(img);
