@@ -109,7 +109,7 @@
 
   // ---------- Voice (kid-like, queued, no overlap) ----------
   const hasSpeech = ("speechSynthesis" in window) && ("SpeechSynthesisUtterance" in window);
-  const VOICE = { on:true, speaking:false, queue:[], voice:null, rate:0.90, pitch:2.05 };
+  const VOICE = { on:true, speaking:false, queue:[], voice:null, rate:0.82, pitch:2.25 };
 
   function pickVoice(){
     if (!hasSpeech) return;
