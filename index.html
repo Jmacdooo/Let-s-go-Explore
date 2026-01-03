@@ -112,17 +112,20 @@
   const VOICE = { on:true, speaking:false, queue:[], voice:null, rate:0.82, pitch:2.25 };
 
   function pickVoice(){
-    if (!hasSpeech) return;
-    const vs = speechSynthesis.getVoices?.() || [];
-    VOICE.voice =
-      vs.find(v => /en/i.test(v.lang) && /(Samantha|Allison|Ava|Jenny|Aria|Zira|Google)/i.test(v.name)) ||
-      vs.find(v => /en/i.test(v.lang)) ||
-      vs[0] || null;
-  }
-  if (hasSpeech){
-    speechSynthesis.onvoiceschanged = pickVoice;
-    pickVoice();
-  }
+  if (!hasSpeech) return;
+  const vs = speechSynthesis.getVoices?.() || [];
+  const en = vs.filter(v => /en/i.test(v.lang));
+
+  // Prefer voices that often sound younger/bright (varies by device)
+  const preferred = en.find(v => /(Google US English|Samantha|Ava|Aria|Jenny|Allison|Zira)/i.test(v.name))
+                 || en.find(v => /Google/i.test(v.name))
+                 || en[0]
+                 || vs[0]
+                 || null;
+
+  VOICE.voice = preferred;
+}
+
   function cancelSpeech(){
     if (!hasSpeech) return;
     try{ speechSynthesis.cancel(); }catch(e){}
