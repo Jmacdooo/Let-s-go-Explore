@@ -63,7 +63,8 @@
 <script>
 (function(){
   // ---------- Error banner ----------
-  var errorBanner = document.getElementById("errorBanner");
+  var errorBanner = document.getElementById("errorBanner");var speechKeepAlive = null;
+
   function showError(msg){
     errorBanner.style.display = "block";
     errorBanner.textContent = String(msg);
@@ -183,20 +184,68 @@
     pickVoice();
   }
 
-  function cancelSpeech(){
-    if (!hasSpeech) return;
-    try{ speechSynthesis.cancel(); }catch(e){}
-    VOICE.queue.length = 0;
+ function speakNext(){
+  if (!VOICE.on || !hasSpeech){ VOICE.speaking=false; return; }
+
+  var next = VOICE.queue.shift();
+  if (!next){
     VOICE.speaking = false;
-    VOICE.onDone = null;
+
+    if (speechKeepAlive){
+      clearInterval(speechKeepAlive);
+      speechKeepAlive = null;
+    }
+
+    if (typeof VOICE.onDone === "function"){
+      var f = VOICE.onDone; VOICE.onDone = null; f();
+    }
+    return;
   }
 
-  function say(text, interrupt){
-    if (!VOICE.on || !hasSpeech) return;
-    if (interrupt) cancelSpeech();
-    VOICE.queue.push(String(text));
-    if (!VOICE.speaking) speakNext();
+  VOICE.speaking = true;
+
+  try{
+    var u = new SpeechSynthesisUtterance(next);
+    u.lang = "en-US";
+    if (VOICE.voice) u.voice = VOICE.voice;
+    u.rate = VOICE.rate;
+    u.pitch = VOICE.pitch;
+    u.volume = 1.0;
+
+    // KEEP-ALIVE: prevents the “stops after 1–2 lines” bug
+    if (speechKeepAlive) clearInterval(speechKeepAlive);
+    speechKeepAlive = setInterval(function(){
+      try{ speechSynthesis.resume(); }catch(e){}
+    }, 250);
+
+    u.onend = function(){
+      VOICE.speaking = false;
+      if (speechKeepAlive){ clearInterval(speechKeepAlive); speechKeepAlive = null; }
+      speakNext();
+    };
+    u.onerror = function(){
+      VOICE.speaking = false;
+      if (speechKeepAlive){ clearInterval(speechKeepAlive); speechKeepAlive = null; }
+      speakNext();
+    };
+
+    speechSynthesis.speak(u);
+
+    // Longer watchdog (don’t cut off normal sentences)
+    setTimeout(function(){
+      if (VOICE.speaking){
+        cancelSpeech();
+        speakNext();
+      }
+    }, 20000);
+
+  }catch(e){
+    VOICE.speaking = false;
+    if (speechKeepAlive){ clearInterval(speechKeepAlive); speechKeepAlive = null; }
+    speakNext();
   }
+}
+
 
   function speakNext(){
     if (!VOICE.on || !hasSpeech){ VOICE.speaking=false; return; }
