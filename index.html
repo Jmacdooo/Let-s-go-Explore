@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Calm Dog v9.2 — Correct Sprite Cropping</title>
+  <title>Calm Dog v9.3 — Fixed Sprite Cropping + Lower Walk</title>
   <style>
     html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;background:#eaf4ff;}
     canvas{display:block;width:100vw;height:100vh;}
@@ -43,7 +43,7 @@
 </head>
 <body>
 
-  <div id="banner">CALM DOG v9.2 ✅</div>
+  <div id="banner">CALM DOG v9.3 ✅</div>
 
   <div id="hud">
     <button class="btn" id="startBtn">Start</button>
@@ -82,19 +82,27 @@
   var SCALE_MIN = 0.62;
   var SCALE_MAX = 2.05;
 
+  // dog lower during breathing so it never covers numbers
   var BREATH_DOG_DROP_BASE = 80;
   var BREATH_DOG_DROP_PER_SCALE = 65;
   var BREATH_DOG_DROP_MAX = 190;
 
+  // dog lower during walking/exploring
+  var WALK_DOG_DROP = 55;            // <— lowers the walking dog
+
+  // ground height
+  var GROUND_Y_PCT = 0.82;           // <— slightly lower ground
+
+  // walk off-screen transition
   var EXIT_MARGIN = 240;
   var TRANSITION_SPEED_MULT = 0.75;
+
+  // ignore landmarks briefly after explore begins
   var EXPLORE_GRACE_MS = 1300;
 
-  // 🔧 IMPORTANT:
-  // If your walk strip is 6 frames, set to 6.
-  // If 5 frames, set to 5.
-  // Leave 0 to auto-detect using idle frame width (best).
-  var WALK_FRAMES_FORCE = 0;
+  // ✅ IMPORTANT: set this to 6 if you still see multiple dogs inside one frame
+  // (most walk strips are 6). Leave 0 to auto-detect.
+  var WALK_FRAMES_FORCE = 6;
 
   // ---------- ASSETS (optional) ----------
   var ASSETS = {
@@ -130,47 +138,42 @@
     img.onerror = function(){ cb(null); };
     img.src = src;
   }
-
   var bgImg=null, idleImg=null, walkImg=null;
 
-  // This is the key: the *actual* frame count used for cropping.
+  // Final walk frame count used for animation + cropping
   var walkFrames = 1;
 
-  function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+  function clamp(n,a,b){ return Math.max(a, Math.min(b,n)); }
+
+  // Robust frame detection (but we will FORCE by default to 6)
+  function detectFrames(img){
+    if (!img) return 1;
+    var ratio = img.width / Math.max(1, img.height);
+    if (ratio < 1.6) return 1;
+
+    // Prefer a frame aspect near 1.0 (height ~= frame width)
+    var best = 6, bestScore = 1e9;
+    for (var n=2;n<=12;n++){
+      var fw = img.width / n;
+      var aspect = img.height / fw;      // height / frameWidth
+      var score = Math.abs(aspect - 1.0) + Math.abs(ratio - n) * 0.15;
+      if (aspect < 0.55 || aspect > 2.2) score += 10;
+      if (score < bestScore){ bestScore = score; best = n; }
+    }
+    return best;
+  }
 
   function recalcWalkFrames(){
     if (!walkImg){ walkFrames = 1; return; }
-
     if (WALK_FRAMES_FORCE && WALK_FRAMES_FORCE > 0){
       walkFrames = clamp(WALK_FRAMES_FORCE, 1, 12);
-      return;
+    } else {
+      walkFrames = clamp(detectFrames(walkImg), 1, 12);
     }
-
-    // BEST detection: walk strip width divided by single idle frame width
-    if (idleImg && idleImg.width > 0){
-      var raw = walkImg.width / idleImg.width;
-      var guess = Math.round(raw);
-      walkFrames = clamp(guess, 1, 12);
-
-      // If guess somehow becomes 1 but the image is clearly a strip, fallback:
-      if (walkFrames === 1 && walkImg.width > idleImg.width * 1.5){
-        walkFrames = 5; // safe default
-      }
-      return;
-    }
-
-    // Fallback: guess by ratio. Less reliable but better than 1.
-    var ratio = walkImg.width / Math.max(1, walkImg.height);
-    var g2 = Math.round(ratio);
-    walkFrames = clamp(g2, 1, 12);
-    if (ratio < 1.6) walkFrames = 1;
   }
 
-  loadImage(ASSETS.bg, function(i){ bgImg=i; });
-  loadImage(ASSETS.idle, function(i){
-    idleImg=i;
-    recalcWalkFrames();
-  });
+  loadImage(ASSETS.bg,   function(i){ bgImg=i; });
+  loadImage(ASSETS.idle, function(i){ idleImg=i; });
   loadImage(ASSETS.walk, function(i){
     walkImg=i;
     recalcWalkFrames();
@@ -196,7 +199,7 @@
   }
   musicBtn.addEventListener("click", function(){ setMusic(!musicOn); });
 
-  // ---------- Voice (queued + keep-alive) ----------
+  // ---------- Voice ----------
   var hasSpeech = ("speechSynthesis" in window) && ("SpeechSynthesisUtterance" in window);
   var VOICE = { on:true, voice:null, rate:0.88, pitch:2.25, speaking:false, queue:[], onDone:null };
   var speechKeepAlive = null;
@@ -231,10 +234,7 @@
     VOICE.queue.length = 0;
     VOICE.speaking = false;
     VOICE.onDone = null;
-    if (speechKeepAlive){
-      clearInterval(speechKeepAlive);
-      speechKeepAlive = null;
-    }
+    if (speechKeepAlive){ clearInterval(speechKeepAlive); speechKeepAlive = null; }
   }
 
   function say(text, interrupt){
@@ -250,10 +250,7 @@
     var next = VOICE.queue.shift();
     if (!next){
       VOICE.speaking = false;
-      if (speechKeepAlive){
-        clearInterval(speechKeepAlive);
-        speechKeepAlive = null;
-      }
+      if (speechKeepAlive){ clearInterval(speechKeepAlive); speechKeepAlive = null; }
       if (typeof VOICE.onDone === "function"){
         var f = VOICE.onDone; VOICE.onDone = null; f();
       }
@@ -271,9 +268,7 @@
       u.volume = 1.0;
 
       if (speechKeepAlive) clearInterval(speechKeepAlive);
-      speechKeepAlive = setInterval(function(){
-        try{ speechSynthesis.resume(); }catch(e){}
-      }, 250);
+      speechKeepAlive = setInterval(function(){ try{ speechSynthesis.resume(); }catch(e){} }, 250);
 
       u.onend = function(){
         VOICE.speaking = false;
@@ -289,10 +284,7 @@
       speechSynthesis.speak(u);
 
       setTimeout(function(){
-        if (VOICE.speaking){
-          cancelSpeech();
-          speakNext();
-        }
+        if (VOICE.speaking){ cancelSpeech(); speakNext(); }
       }, 22000);
 
     }catch(e){
@@ -317,7 +309,7 @@
     if (!VOICE.on) cancelSpeech();
   });
 
-  // ---------- Input (baby-proof) ----------
+  // ---------- Input ----------
   var left=false, right=false;
   window.addEventListener("keydown", function(e){
     if (e.key==="ArrowLeft") left=true;
@@ -362,7 +354,7 @@
   function easeInOut(t){ return (t<0.5) ? (2*t*t) : (1 - Math.pow(-2*t+2,2)/2); }
   function lerp(a,b,t){ return a + (b-a)*t; }
 
-  // Breath speaking (split so "Breathe in" never disappears)
+  // Breath speaking (split so it never drops words)
   var phaseSpeakTimer = null;
   var lastPhaseKey = "";
   function speakPhase(phaseName){
@@ -372,11 +364,7 @@
     if (key === lastPhaseKey) return;
     lastPhaseKey = key;
 
-    if (phaseSpeakTimer){
-      clearTimeout(phaseSpeakTimer);
-      phaseSpeakTimer = null;
-    }
-
+    if (phaseSpeakTimer){ clearTimeout(phaseSpeakTimer); phaseSpeakTimer=null; }
     cancelSpeech();
 
     phaseSpeakTimer = setTimeout(function(){
@@ -502,42 +490,39 @@
     ctx.restore();
   }
 
-  // ✅ Correct sprite cropping: always uses integer frame widths
+  // ✅ PERFECT cropping: uses fractional boundaries so you NEVER see 2–3 dogs at once
   function drawDog(img, cx, groundY, baseW, scale, frameIndex, flipX, yOffset, framesCount){
     var frames = framesCount || 1;
 
     if (!img){
       var dw0 = baseW * scale;
       var dh0 = dw0 * 0.90;
-      var cy0 = groundY - (dh0/2) + (dh0*0.10) + (yOffset || 0);
+      var cy0 = groundY - (dh0/2) + (dh0*0.07) + (yOffset || 0);
       drawCartoonDog(cx, cy0, dw0, dh0);
       return;
     }
 
-    // Integer crop sizes prevent “strip inside dog”
-    var fw = Math.floor(img.width / frames);
-    fw = Math.max(1, fw);
-    var fh = img.height;
+    // Compute per-frame source rect using exact slice edges:
+    var f = (frames > 1) ? (frameIndex % frames) : 0;
+    var sx = Math.floor(f * img.width / frames);
+    var sx2 = Math.floor((f + 1) * img.width / frames);
+    var sw = Math.max(1, sx2 - sx);
+    var sh = img.height;
 
-    // Aspect based on ONE frame (not the whole strip)
-    var aspect = fh / fw;
+    // Aspect from the frame slice (not whole strip)
+    var aspect = sh / sw;
 
     var dw = baseW * scale;
     var dh = dw * aspect;
 
-    var feetLift = dh * 0.10;
+    // anchor to ground
+    var feetLift = dh * 0.07;
     var cy = groundY - (dh/2) + feetLift + (yOffset || 0);
-
-    var f = (frames > 1) ? (frameIndex % frames) : 0;
-    var sx = f * fw;
-
-    // Guard: never exceed image bounds
-    if (sx + fw > img.width) sx = Math.max(0, img.width - fw);
 
     ctx.save();
     ctx.translate(cx, cy);
     if (flipX) ctx.scale(-1, 1);
-    ctx.drawImage(img, sx, 0, fw, fh, -dw/2, -dh/2, dw, dh);
+    ctx.drawImage(img, sx, 0, sw, sh, -dw/2, -dh/2, dw, dh);
     ctx.restore();
   }
 
@@ -554,7 +539,7 @@
       ctx.fillRect(0,0,w,h);
     }
 
-    var groundY = Math.round(h*0.78);
+    var groundY = Math.round(h * GROUND_Y_PCT);
     ctx.fillStyle = "rgba(40,90,70,.18)";
     ctx.fillRect(0, groundY, w, h-groundY);
     return groundY;
@@ -670,7 +655,6 @@
     drawParks(w, groundY);
 
     var baseW = Math.min(360, Math.max(180, w*0.30));
-
     var scale = 1.08;
 
     if (mode === MODE.INTRO || mode === MODE.OPENING || mode === MODE.BREATH){
@@ -710,29 +694,35 @@
     var flipX = left ? true : (right ? false : false);
 
     var yOffset = 0;
+
+    // breathing drop
     if (mode === MODE.BREATH){
       var extra = Math.max(0, (scale - 1)) * BREATH_DOG_DROP_PER_SCALE;
-      yOffset = Math.min(BREATH_DOG_DROP_MAX, BREATH_DOG_DROP_BASE + extra);
+      yOffset += Math.min(BREATH_DOG_DROP_MAX, BREATH_DOG_DROP_BASE + extra);
+    }
+
+    // walk drop (THIS fixes “dog too high”)
+    if (usingWalk || mode === MODE.STOP){
+      yOffset += WALK_DOG_DROP;
     }
 
     var drawX = (mode === MODE.TRANSITION || mode === MODE.EXPLORE || mode === MODE.STOP) ? dog.x : (w*0.5);
     drawDog(img || null, drawX, groundY, baseW, scale, frameIndex, flipX, yOffset, framesCount);
 
-    // Debug text (helps lock frame count)
+    // Debug line (confirm frames)
     ctx.fillStyle = "rgba(0,0,0,.70)";
     ctx.textAlign = "left";
     ctx.font = "800 12px system-ui, -apple-system, Segoe UI, Arial";
     ctx.fillText(
-      "walkFrames=" + walkFrames +
-      "  idleW=" + (idleImg?idleImg.width:0) +
-      "  walkW=" + (walkImg?walkImg.width:0) +
-      "  walkH=" + (walkImg?walkImg.height:0),
+      "walkFrames=" + walkFrames + " (FORCE=" + WALK_FRAMES_FORCE + ")  walkW=" + (walkImg?walkImg.width:0) + " walkH=" + (walkImg?walkImg.height:0),
       14, h-14
     );
 
     requestAnimationFrame(loop);
   }
 
+  // Init
+  walkFrames = (WALK_FRAMES_FORCE && WALK_FRAMES_FORCE>0) ? WALK_FRAMES_FORCE : 1;
   reset();
   requestAnimationFrame(loop);
 
@@ -740,4 +730,3 @@
 </script>
 </body>
 </html>
-
