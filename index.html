@@ -3,46 +3,53 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Calm Dog — 3 Breaths (1-2-3) + Walk</title>
+  <title>Calm Dog — Breathe (1-2-3) then Walk</title>
   <style>
-    html,body{ margin:0; height:100%; overflow:hidden; font-family: system-ui, -apple-system, Segoe UI, Arial, sans-serif; background:#cfe9ff; }
-    canvas{ display:block; width:100vw; height:100vh; }
+    html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;background:#cfe9ff;}
+    canvas{display:block;width:100vw;height:100vh;}
     #ui{
-      position:fixed; left:12px; top:12px; z-index:10;
-      display:flex; gap:8px; flex-wrap:wrap; align-items:center;
-      background:rgba(255,255,255,.92); box-shadow:0 10px 30px rgba(0,0,0,.18);
-      padding:10px 12px; border-radius:16px;
+      position:fixed;left:12px;top:12px;z-index:10;
+      display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+      background:rgba(255,255,255,.92);box-shadow:0 10px 30px rgba(0,0,0,.18);
+      padding:10px 12px;border-radius:16px;
+      user-select:none;
     }
-    .btn{ border:none; border-radius:14px; padding:10px 12px; font-weight:900; cursor:pointer; background:#ffd166; }
-    .btn.secondary{ background:#e9ecef; }
+    .btn{
+      border:none;border-radius:14px;padding:10px 12px;
+      font-weight:900;cursor:pointer;background:#ffd166;
+    }
+    .btn.secondary{background:#e9ecef;}
+    .btn.arrow{padding:10px 14px;font-size:18px;line-height:1;}
     #hint{
-      position:fixed; left:50%; bottom:14px; transform:translateX(-50%);
-      background:rgba(255,255,255,.92); box-shadow:0 10px 30px rgba(0,0,0,.18);
-      padding:10px 14px; border-radius:16px;
-      font-weight:900; text-align:center; max-width:min(860px, calc(100vw - 24px));
-      z-index:10; line-height:1.25;
+      position:fixed;left:50%;bottom:14px;transform:translateX(-50%);
+      background:rgba(255,255,255,.92);box-shadow:0 10px 30px rgba(0,0,0,.18);
+      padding:10px 14px;border-radius:16px;
+      font-weight:900;text-align:center;max-width:min(900px, calc(100vw - 24px));
+      z-index:10;line-height:1.25;
     }
-    #hint small{ display:block; font-weight:800; opacity:.75; margin-top:4px; }
+    #hint small{display:block;font-weight:800;opacity:.75;margin-top:4px;}
     #err{
-      position:fixed; left:12px; bottom:12px; z-index:20;
-      background:rgba(0,0,0,.75); color:#fff;
-      padding:10px 12px; border-radius:12px;
-      max-width:min(860px, calc(100vw - 24px));
-      font-weight:700; display:none; white-space:pre-wrap;
+      position:fixed;left:12px;bottom:12px;z-index:20;
+      background:rgba(0,0,0,.75);color:#fff;
+      padding:10px 12px;border-radius:12px;
+      max-width:min(900px, calc(100vw - 24px));
+      font-weight:700;display:none;white-space:pre-wrap;
     }
   </style>
 </head>
 <body>
   <div id="ui">
-    <button class="btn" id="startBtn">Start Calm Walk</button>
-    <button class="btn secondary" id="repeatBtn">3 Breaths</button>
+    <button class="btn" id="startBtn">Start</button>
+    <button class="btn secondary" id="breathBtn">3 Breaths</button>
     <button class="btn secondary" id="muteBtn">Voice: ON</button>
     <button class="btn secondary" id="pauseBtn">Pause</button>
+    <button class="btn secondary arrow" id="leftBtn"  title="Hold to move left">◀</button>
+    <button class="btn secondary arrow" id="rightBtn" title="Hold to move right">▶</button>
   </div>
 
   <div id="hint">
     Are you ready to be calm and go for a walk?
-    <small>Tap “Start Calm Walk” (or tap the dog) to begin.</small>
+    <small>Tap Start (or tap the dog) to begin. Hold ◀ ▶ to move.</small>
   </div>
 
   <div id="err"></div>
@@ -56,38 +63,37 @@
     errBox.textContent = "Error:\n" + (e && e.stack ? e.stack : String(e));
   }
 
-  try {
-    // ------- EDIT ASSET PATHS HERE if needed -------
+  try{
+    // ----------------- EDIT YOUR FILE PATHS HERE -----------------
     const ASSETS = {
-      bg:   "assets/yosemite.png",   // optional
+      bg:   "assets/yosemite.png",  // optional
       idle: "assets/dog_idle.png",
-      walk: "assets/dog_walk.png",   // single image OR wide sprite strip
+      walk: "assets/dog_walk.png"   // horizontal strip (5 frames recommended)
     };
+    const WALK_FRAMES = 5;          // change if your strip is 6, etc.
+    // -------------------------------------------------------------
 
-    // If your walk strip is not 5 frames, set this:
-    const WALK_FRAMES_OVERRIDE = 5; // change to 6 if your strip is 6 frames, etc.
-
-    // ------- Canvas -------
     const canvas = document.getElementById("c");
     const ctx = canvas.getContext("2d");
+
+    const hint = document.getElementById("hint");
+    const startBtn = document.getElementById("startBtn");
+    const breathBtn = document.getElementById("breathBtn");
+    const muteBtn = document.getElementById("muteBtn");
+    const pauseBtn = document.getElementById("pauseBtn");
+    const leftBtn = document.getElementById("leftBtn");
+    const rightBtn = document.getElementById("rightBtn");
 
     function resize(){
       const dpr = Math.max(1, window.devicePixelRatio || 1);
       canvas.width  = Math.floor(window.innerWidth  * dpr);
       canvas.height = Math.floor(window.innerHeight * dpr);
-      ctx.setTransform(dpr,0,0,dpr,0,0); // draw in CSS px
+      ctx.setTransform(dpr,0,0,dpr,0,0);
     }
     window.addEventListener("resize", resize);
     resize();
 
-    // ------- UI -------
-    const hint = document.getElementById("hint");
-    const startBtn  = document.getElementById("startBtn");
-    const repeatBtn = document.getElementById("repeatBtn");
-    const muteBtn   = document.getElementById("muteBtn");
-    const pauseBtn  = document.getElementById("pauseBtn");
-
-    // ------- Image loader -------
+    // -------- Image loader --------
     function loadImage(src){
       return new Promise((resolve) => {
         const img = new Image();
@@ -101,7 +107,7 @@
     Promise.all([loadImage(ASSETS.bg), loadImage(ASSETS.idle), loadImage(ASSETS.walk)])
       .then(([bg, idle, walk]) => { bgImg=bg; idleImg=idle; walkImg=walk; });
 
-    // ------- Safe rounded-rect path (no ctx.roundRect) -------
+    // -------- Safe rounded rect --------
     function roundRectPath(x,y,w,h,r){
       const rr = Math.min(r, w/2, h/2);
       ctx.beginPath();
@@ -113,122 +119,111 @@
       ctx.closePath();
     }
 
-    // ------- Speech: dog-like + queued (no overlap) -------
+    // -------- Kid-like Dog Voice (queued, no overlap) --------
     const hasSpeech = ("speechSynthesis" in window) && ("SpeechSynthesisUtterance" in window);
-    let voiceOn = true;
-    let pickedVoice = null;
+    const DOG_VOICE = {
+      on: true,
+      speaking: false,
+      queue: [],
+      voice: null,
+      // more child-like:
+      rate: 0.88,     // slower
+      pitch: 1.65     // higher
+    };
 
-    const speechQueue = [];
-    let speaking = false;
-
-    function pickVoice(){
+    function pickDogVoice(){
       if (!hasSpeech) return;
-      const vs = window.speechSynthesis.getVoices();
-      pickedVoice =
+      const vs = speechSynthesis.getVoices?.() || [];
+      DOG_VOICE.voice =
         vs.find(v => /en/i.test(v.lang) && /(Samantha|Allison|Ava|Jenny|Aria|Zira|Google)/i.test(v.name)) ||
         vs.find(v => /en/i.test(v.lang)) ||
         vs[0] || null;
     }
     if (hasSpeech){
       try{
-        window.speechSynthesis.onvoiceschanged = pickVoice;
-        pickVoice();
-      } catch(e){}
+        speechSynthesis.onvoiceschanged = pickDogVoice;
+        pickDogVoice();
+      }catch(e){}
     }
 
-    function speakNext(){
-      if (!voiceOn || !hasSpeech) { speechQueue.length = 0; speaking = false; return; }
-      if (speaking) return;
-      const item = speechQueue.shift();
-      if (!item) return;
-
-      speaking = true;
-      try{
-        const u = new SpeechSynthesisUtterance(item.text);
-        if (pickedVoice) u.voice = pickedVoice;
-
-        // Dog narrator: gentle + playful
-        u.rate   = item.rate  ?? 0.78;  // not too fast
-        u.pitch  = item.pitch ?? 1.28;  // dog-ish/child-ish
-        u.volume = 1.0;
-
-        u.onend = () => { speaking = false; speakNext(); };
-        u.onerror = () => { speaking = false; speakNext(); };
-
-        window.speechSynthesis.speak(u);
-
-        // watchdog
-        setTimeout(() => {
-          if (speaking){
-            try{ window.speechSynthesis.cancel(); }catch(e){}
-            speaking = false; speakNext();
-          }
-        }, 7000);
-
-      } catch(e){
-        speaking = false; speakNext();
-      }
-    }
-
-    function dogSay(text, {interrupt=false, rate=null, pitch=null} = {}){
-      if (!voiceOn || !hasSpeech) return;
+    function dogSay(text, { interrupt=false } = {}){
+      if (!DOG_VOICE.on || !hasSpeech) return;
       const cleaned = String(text).replace(/\s+/g," ").trim();
       if (!cleaned) return;
 
       if (interrupt){
-        try{ window.speechSynthesis.cancel(); }catch(e){}
-        speechQueue.length = 0;
-        speaking = false;
+        try{ speechSynthesis.cancel(); }catch(e){}
+        DOG_VOICE.queue.length = 0;
+        DOG_VOICE.speaking = false;
       }
-      speechQueue.push({ text: cleaned, rate, pitch });
-      speakNext();
+
+      // keep phrases short for kids
+      DOG_VOICE.queue.push(cleaned);
+      if (!DOG_VOICE.speaking) speakNextDog();
+    }
+
+    function speakNextDog(){
+      const next = DOG_VOICE.queue.shift();
+      if (!next){ DOG_VOICE.speaking = false; return; }
+      DOG_VOICE.speaking = true;
+
+      try{
+        const u = new SpeechSynthesisUtterance(next);
+        if (DOG_VOICE.voice) u.voice = DOG_VOICE.voice;
+        u.rate = DOG_VOICE.rate;
+        u.pitch = DOG_VOICE.pitch;
+        u.volume = 1.0;
+
+        u.onend = () => { DOG_VOICE.speaking = false; speakNextDog(); };
+        u.onerror = () => { DOG_VOICE.speaking = false; speakNextDog(); };
+
+        speechSynthesis.speak(u);
+
+        // watchdog
+        setTimeout(() => {
+          if (DOG_VOICE.speaking){
+            try{ speechSynthesis.cancel(); }catch(e){}
+            DOG_VOICE.speaking = false;
+            speakNextDog();
+          }
+        }, 6500);
+      }catch(e){
+        DOG_VOICE.speaking = false;
+        speakNextDog();
+      }
     }
 
     muteBtn.addEventListener("click", () => {
-      voiceOn = !voiceOn;
-      muteBtn.textContent = voiceOn ? "Voice: ON" : "Voice: OFF";
-      if (!voiceOn && hasSpeech){
-        try{ window.speechSynthesis.cancel(); }catch(e){}
-        speechQueue.length = 0;
-        speaking = false;
-      } else if (voiceOn){
-        dogSay("Woof. Voice is on.", {interrupt:true});
+      DOG_VOICE.on = !DOG_VOICE.on;
+      muteBtn.textContent = DOG_VOICE.on ? "Voice: ON" : "Voice: OFF";
+      if (!DOG_VOICE.on && hasSpeech){
+        try{ speechSynthesis.cancel(); }catch(e){}
+        DOG_VOICE.queue.length = 0;
+        DOG_VOICE.speaking = false;
+      } else {
+        dogSay("Woof! Hi!", { interrupt:true });
       }
     });
 
-    // ------- Modes -------
-    const MODE = { INTRO:"intro", BREATH:"breath", WALK:"walk" };
-    let mode = MODE.INTRO;
-    let paused = false;
-
-    function setPaused(v){
-      paused = v;
-      pauseBtn.textContent = paused ? "Resume" : "Pause";
-    }
-
-    // ------- Sprite + aspect (prevents smoosh) -------
+    // -------- Sprite helpers (no smoosh) --------
     function spriteInfo(img){
       if (!img) return { frames:1, frameW:0, frameH:0 };
       const ratio = img.width / img.height;
-
-      // If it's wide, treat as strip; use override count.
-      const frames = ratio >= 2.0 ? WALK_FRAMES_OVERRIDE : 1;
+      const frames = ratio >= 2.0 ? WALK_FRAMES : 1;
       return { frames, frameW: img.width/frames, frameH: img.height };
     }
-
     function frameAspect(img){
       if (!img) return 0.80;
       const s = spriteInfo(img);
       const fw = s.frameW || img.width;
       const fh = s.frameH || img.height;
-      return fh / fw; // height/width of ONE frame
+      return fh / fw;
     }
-
     function drawSprite(img, x, y, drawW, drawH, frameIndex, flipX){
       if (!img){
-        // fallback dog so you ALWAYS see something
+        // fallback dog so you never get a blank screen
         ctx.save();
-        ctx.translate(x, y);
+        ctx.translate(x,y);
         ctx.fillStyle = "rgba(30,40,60,.88)";
         roundRectPath(-drawW/2, -drawH/2, drawW, drawH, 18);
         ctx.fill();
@@ -244,8 +239,8 @@
       const f = s.frames > 1 ? (frameIndex % s.frames) : 0;
 
       ctx.save();
-      ctx.translate(x, y);
-      if (flipX) ctx.scale(-1, 1);
+      ctx.translate(x,y);
+      if (flipX) ctx.scale(-1,1);
 
       const sx = f * s.frameW;
       const sw = s.frameW || img.width;
@@ -255,8 +250,9 @@
       ctx.restore();
     }
 
-    // ------- Background -------
+    // -------- Background + ground --------
     function drawBackground(w,h){
+      // soft sky
       ctx.fillStyle = "#cfe9ff";
       ctx.fillRect(0,0,w,h);
 
@@ -267,237 +263,22 @@
         ctx.drawImage(bgImg, (w-dw)/2, (h-dh)/2, dw, dh);
         ctx.fillStyle = "rgba(255,255,255,.10)";
         ctx.fillRect(0,0,w,h);
+      } else {
+        // tiny cloud stripes
+        ctx.fillStyle = "rgba(255,255,255,.20)";
+        for(let i=0;i<6;i++){
+          ctx.beginPath();
+          ctx.ellipse(w*(0.15+i*0.15), h*(0.18+(i%2)*0.06), 80, 28, 0, 0, Math.PI*2);
+          ctx.fill();
+        }
       }
 
       const groundY = Math.round(h * 0.78);
       ctx.fillStyle = "rgba(30,60,50,.22)";
       ctx.fillRect(0, groundY, w, h-groundY);
+
       return groundY;
     }
 
-    // ------- Breathing: 1-2-3 IN, 1-2-3 OUT, repeat 3 times -------
-    let breathNum = 1;        // 1..3 breaths
-    let phase = "in";         // "in" | "out"
-    let phaseStart = 0;
-    let lastCount = 0;        // last spoken count (1..3)
-    let lastPhaseSpoken = ""; // used to reset speech cleanly
-
-    const STEPS = 3;
-    const INHALE_MS = 3600;   // 1..3 evenly paced
-    const EXHALE_MS = 3600;
-
-    // BIG change: dog gets REALLY huge / small
-    const SCALE_MIN = 0.62;
-    const SCALE_MAX = 1.85;
-
-    function easeInOut(t){ return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2,2)/2; }
-    function lerp(a,b,t){ return a + (b-a)*t; }
-
-    function startBreathing(){
-      mode = MODE.BREATH;
-      setPaused(false);
-
-      breathNum = 1;
-      phase = "in";
-      phaseStart = performance.now();
-      lastCount = 0;
-      lastPhaseSpoken = "";
-
-      hint.innerHTML = `Let’s do <b>3 breaths</b>.<small>In 1-2-3 (grow)… Out 1-2-3 (shrink)…</small>`;
-      dogSay("Woof. Ready? Let's breathe.", {interrupt:true});
-      // We'll speak counts as we go (no long phrases).
-    }
-
-    function startWalking(){
-      mode = MODE.WALK;
-      setPaused(false);
-      hint.innerHTML = `Nice job. Calm walk time.<small>Tap the dog to pause or resume.</small>`;
-      dogSay("Nice job. Let's walk.", {interrupt:true});
-    }
-
-    function updateBreathing(now){
-      const dur = (phase === "in") ? INHALE_MS : EXHALE_MS;
-      const t = Math.min(1, (now - phaseStart) / dur);
-      const e = easeInOut(t);
-
-      // scaling: inhale grows, exhale shrinks
-      const scale = (phase === "in")
-        ? lerp(SCALE_MIN, SCALE_MAX, e)
-        : lerp(SCALE_MAX, SCALE_MIN, e);
-
-      // count 1..3 based on thirds of the phase duration
-      const count = Math.min(STEPS, Math.floor(t * STEPS) + 1);
-
-      // Speak counts ONLY when the number changes (no overlap)
-      if (!paused) {
-        const phaseKey = `${breathNum}-${phase}`;
-        if (phaseKey !== lastPhaseSpoken){
-          // new phase: clear any leftover queued counts (keeps it tight)
-          lastPhaseSpoken = phaseKey;
-          lastCount = 0;
-          dogSay(phase === "in" ? "In." : "Out.", { interrupt:true, rate:0.78, pitch:1.30 });
-        }
-
-        if (count !== lastCount){
-          lastCount = count;
-
-          // Make "one" start with in/out to sound cute and clear
-          if (count === 1){
-            dogSay("one", { rate:0.82, pitch:1.30 });
-          } else if (count === 2){
-            dogSay("two", { rate:0.82, pitch:1.30 });
-          } else {
-            dogSay("three", { rate:0.82, pitch:1.30 });
-          }
-        }
-      }
-
-      // phase transitions
-      if (!paused && t >= 1){
-        if (phase === "in"){
-          phase = "out";
-          phaseStart = now;
-        } else {
-          // finished exhale = finished one full breath
-          if (breathNum >= 3){
-            startWalking();
-          } else {
-            breathNum += 1;
-            phase = "in";
-            phaseStart = now;
-            // quick encouragement, then next phase starts counting again
-            dogSay("Good job.", { interrupt:true, rate:0.78, pitch:1.30 });
-            lastPhaseSpoken = ""; // so next phase says "In."
-          }
-        }
-      }
-
-      return { scale, count };
-    }
-
-    // ------- Walking -------
-    let dogX = 140;
-    let dogDir = 1;
-    let walkT = 0;
-
-    // ------- Input -------
-    function toggleTap(){
-      if (mode === MODE.INTRO){
-        startBreathing();
-        return;
-      }
-      setPaused(!paused);
-      dogSay(paused ? "Pause." : "Okay.", {interrupt:true, rate:0.80, pitch:1.30});
-    }
-    canvas.addEventListener("pointerdown", toggleTap, {passive:true});
-
-    startBtn.addEventListener("click", startBreathing);
-    repeatBtn.addEventListener("click", startBreathing);
-    pauseBtn.addEventListener("click", () => {
-      if (mode === MODE.INTRO) startBreathing();
-      else toggleTap();
-    });
-
-    // ------- Animation loop (safe) -------
-    let last = performance.now();
-
-    function loop(now){
-      try{
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-        const dt = Math.min(0.05, (now - last)/1000);
-        last = now;
-
-        const groundY = drawBackground(w,h);
-
-        // pick sprite and aspect
-        const sprite = (mode === MODE.WALK ? (walkImg || idleImg) : idleImg) || idleImg;
-        const aspect = frameAspect(sprite);
-
-        // base size
-        const baseW = Math.min(340, Math.max(170, w * 0.27));
-        let scale = 1.06;
-        let frameIndex = 0;
-        let flipX = (dogDir < 0);
-
-        // breathing count + label
-        let label = "";
-        let countText = "";
-
-        if (mode === MODE.INTRO){
-          hint.innerHTML = `Are you ready to be calm and go for a walk?<small>Tap Start (or tap the dog) to begin.</small>`;
-          flipX = false;
-          dogX = w * 0.5;
-        }
-
-        if (mode === MODE.BREATH){
-          const b = updateBreathing(now);
-          scale = b.scale;
-
-          label = (phase === "in") ? "Breathe in…" : "Breathe out…";
-          countText = String(b.count);
-
-          dogX = w * 0.5;
-          flipX = false;
-        }
-
-        if (mode === MODE.WALK){
-          if (!paused){
-            walkT += dt;
-            const speed = Math.max(18, w * 0.055);
-            dogX += dogDir * speed * dt;
-
-            const margin = baseW * 0.48;
-            if (dogX > w - margin){ dogX = w - margin; dogDir = -1; }
-            if (dogX < margin){ dogX = margin; dogDir = 1; }
-
-            frameIndex = Math.floor(walkT * 8);
-          }
-          scale = 1.0;
-          flipX = (dogDir < 0);
-        }
-
-        // final draw sizes
-        const dw = baseW * scale;
-        const dh = dw * aspect; // aspect preserved
-
-        // feet anchored to ground even when huge
-        const FEET_PAD_FRAC = 0.10; // how much above bottom the "feet" sit
-        let y = groundY - (dh/2) + (dh * FEET_PAD_FRAC);
-
-        // tiny bob in walk
-        if (mode === MODE.WALK){
-          y += (!paused ? Math.sin(walkT * 5.5) * 3 : 0);
-        }
-
-        drawSprite(sprite, dogX, y, dw, dh, frameIndex, flipX);
-
-        // On-screen breath UI
-        if (mode === MODE.BREATH){
-          ctx.fillStyle = "rgba(0,0,0,.75)";
-          ctx.textAlign = "center";
-
-          ctx.font = "900 22px system-ui, -apple-system, Segoe UI, Arial";
-          ctx.fillText(`Breath ${breathNum} of 3`, w*0.5, 92);
-
-          ctx.font = "900 34px system-ui, -apple-system, Segoe UI, Arial";
-          ctx.fillText(label, w*0.5, 135);
-
-          ctx.font = "1000 70px system-ui, -apple-system, Segoe UI, Arial";
-          ctx.fillText(countText, w*0.5, 210);
-        }
-
-      } catch(e){
-        showErr(e);
-      }
-      requestAnimationFrame(loop);
-    }
-    requestAnimationFrame(loop);
-
-  } catch(e){
-    showErr(e);
-  }
-})();
-</script>
-</body>
-</html>
+    // -------- Parks / Landmarks --------
+    con
