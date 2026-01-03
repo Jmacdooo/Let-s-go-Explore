@@ -164,27 +164,56 @@
   }
   musicBtn.addEventListener("click", function(){ setMusic(!musicOn); });
 
-  // ---------- Voice (queued, no overlap) ----------
-  var hasSpeech = ("speechSynthesis" in window) && ("SpeechSynthesisUtterance" in window);
-  var VOICE = { on:true, voice:null, rate:0.88, pitch:2.25, speaking:false, queue:[], onDone:null };
+// ---------- Voice (queued, no overlap, Safari/iOS keep-alive) ----------
+var hasSpeech = ("speechSynthesis" in window) && ("SpeechSynthesisUtterance" in window);
+var VOICE = { on:true, voice:null, rate:0.88, pitch:2.25, speaking:false, queue:[], onDone:null };
+var speechKeepAlive = null;
 
-  function pickVoice(){
-    if (!hasSpeech) return;
-    var vs = speechSynthesis.getVoices ? speechSynthesis.getVoices() : [];
-    var en = [];
-    for (var i=0;i<vs.length;i++){ if ((vs[i].lang||"").toLowerCase().indexOf("en")===0) en.push(vs[i]); }
-    function findBy(re){
-      for (var j=0;j<en.length;j++){ if (re.test(en[j].name)) return en[j]; }
-      return null;
+function pickVoice(){
+  if (!hasSpeech) return;
+  var vs = speechSynthesis.getVoices ? speechSynthesis.getVoices() : [];
+  var en = [];
+  for (var i=0;i<vs.length;i++){
+    var lang = (vs[i].lang || "").toLowerCase();
+    if (lang.indexOf("en") === 0) en.push(vs[i]);
+  }
+  function findBy(re){
+    for (var j=0;j<en.length;j++){
+      if (re.test(en[j].name)) return en[j];
     }
-    VOICE.voice = findBy(/(Google US English|Samantha|Ava|Aria|Jenny|Allison|Zira)/i) || findBy(/Google/i) || en[0] || vs[0] || null;
+    return null;
   }
-  if (hasSpeech){
-    speechSynthesis.onvoiceschanged = pickVoice;
-    pickVoice();
-  }
+  VOICE.voice =
+    findBy(/(Google US English|Samantha|Ava|Aria|Jenny|Allison|Zira)/i) ||
+    findBy(/Google/i) ||
+    en[0] || vs[0] || null;
+}
+if (hasSpeech){
+  speechSynthesis.onvoiceschanged = pickVoice;
+  pickVoice();
+}
 
- function speakNext(){
+function cancelSpeech(){
+  if (!hasSpeech) return;
+  try{ speechSynthesis.cancel(); }catch(e){}
+  VOICE.queue.length = 0;
+  VOICE.speaking = false;
+  VOICE.onDone = null;
+
+  if (speechKeepAlive){
+    clearInterval(speechKeepAlive);
+    speechKeepAlive = null;
+  }
+}
+
+function say(text, interrupt){
+  if (!VOICE.on || !hasSpeech) return;
+  if (interrupt) cancelSpeech();
+  VOICE.queue.push(String(text));
+  if (!VOICE.speaking) speakNext();
+}
+
+function speakNext(){
   if (!VOICE.on || !hasSpeech){ VOICE.speaking=false; return; }
 
   var next = VOICE.queue.shift();
@@ -212,7 +241,7 @@
     u.pitch = VOICE.pitch;
     u.volume = 1.0;
 
-    // KEEP-ALIVE: prevents the “stops after 1–2 lines” bug
+    // keep-alive for iOS/Safari/webviews that stop after 1–2 lines
     if (speechKeepAlive) clearInterval(speechKeepAlive);
     speechKeepAlive = setInterval(function(){
       try{ speechSynthesis.resume(); }catch(e){}
@@ -231,7 +260,7 @@
 
     speechSynthesis.speak(u);
 
-    // Longer watchdog (don’t cut off normal sentences)
+    // watchdog (don’t cut normal sentences)
     setTimeout(function(){
       if (VOICE.speaking){
         cancelSpeech();
@@ -246,48 +275,23 @@
   }
 }
 
-
-  function speakNext(){
-    if (!VOICE.on || !hasSpeech){ VOICE.speaking=false; return; }
-    var next = VOICE.queue.shift();
-    if (!next){
-      VOICE.speaking = false;
-      if (typeof VOICE.onDone === "function"){ var f=VOICE.onDone; VOICE.onDone=null; f(); }
-      return;
-    }
-    VOICE.speaking = true;
-    try{
-      var u = new SpeechSynthesisUtterance(next);
-      if (VOICE.voice) u.voice = VOICE.voice;
-      u.rate = VOICE.rate;
-      u.pitch = VOICE.pitch;
-      u.volume = 1.0;
-      u.onend = function(){ VOICE.speaking=false; speakNext(); };
-      u.onerror = function(){ VOICE.speaking=false; speakNext(); };
-      speechSynthesis.speak(u);
-      setTimeout(function(){
-        // watchdog
-        if (VOICE.speaking){ cancelSpeech(); speakNext(); }
-      }, 8000);
-    }catch(e){
-      VOICE.speaking=false; speakNext();
-    }
+function speakSequence(lines, done){
+  if (!VOICE.on || !hasSpeech){
+    if (typeof done === "function") done();
+    return;
   }
-
-  function speakSequence(lines, done){
-    if (!VOICE.on || !hasSpeech){
-      if (typeof done === "function") done();
-      return;
-    }
-    VOICE.onDone = done || null;
-    for (var i=0;i<lines.length;i++) say(lines[i], false);
+  VOICE.onDone = (typeof done === "function") ? done : null;
+  for (var i=0;i<lines.length;i++){
+    say(lines[i], false);
   }
+}
 
-  voiceBtn.addEventListener("click", function(){
-    VOICE.on = !VOICE.on;
-    voiceBtn.textContent = VOICE.on ? "Voice: ON" : "Voice: OFF";
-    if (!VOICE.on) cancelSpeech();
-  });
+voiceBtn.addEventListener("click", function(){
+  VOICE.on = !VOICE.on;
+  voiceBtn.textContent = VOICE.on ? "Voice: ON" : "Voice: OFF";
+  if (!VOICE.on) cancelSpeech();
+});
+
 
   // ---------- Input (baby-proof) ----------
   var left=false, right=false;
